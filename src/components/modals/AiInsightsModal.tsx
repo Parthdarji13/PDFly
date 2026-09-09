@@ -17,6 +17,8 @@ import {
   RefreshCw,
   AlertCircle,
   FileText,
+  FolderOpen,
+  Upload,
 } from 'lucide-react';
 import { DocumentState } from '../../lib/types';
 import { extractDocumentText, estimateTokens } from '../../lib/ai/textExtractor';
@@ -27,6 +29,8 @@ interface AiInsightsModalProps {
   documentState: DocumentState;
   onRenameDocument?: (newName: string) => void;
   onShowToast: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  onOpenFile?: (file: File) => void;
+  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => void;
 }
 
 interface ExtractedInsights {
@@ -45,18 +49,22 @@ export const AiInsightsModal: React.FC<AiInsightsModalProps> = ({
   documentState,
   onRenameDocument,
   onShowToast,
+  onOpenFile,
+  onLoadSample,
 }) => {
   const [insights, setInsights] = useState<ExtractedInsights | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const hasDocument = documentState.pages && documentState.pages.length > 0;
   const docText = React.useMemo(() => extractDocumentText(documentState), [documentState]);
   const tokenCount = React.useMemo(() => estimateTokens(docText), [docText]);
 
   const extractInsights = async () => {
-    if (!docText || docText.trim().length === 0) {
-      setErrorMsg('This document contains no readable text to analyze.');
+    if (!hasDocument || !docText || docText.trim().length === 0) {
+      setErrorMsg('Please select or upload a readable PDF document first.');
       return;
     }
 
@@ -90,10 +98,10 @@ export const AiInsightsModal: React.FC<AiInsightsModalProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen && !insights && !isLoading && !errorMsg) {
+    if (isOpen && hasDocument && !insights && !isLoading && !errorMsg) {
       extractInsights();
     }
-  }, [isOpen]);
+  }, [isOpen, hasDocument]);
 
   const handleApplySmartName = () => {
     if (!insights?.suggestedFileName || !onRenameDocument) return;
@@ -189,9 +197,84 @@ export const AiInsightsModal: React.FC<AiInsightsModalProps> = ({
           </button>
         </div>
 
+        {/* Hidden file input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="application/pdf,.pdf"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f && onOpenFile) {
+              onOpenFile(f);
+            }
+          }}
+        />
+
         {/* Modal Body */}
         <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
-          {isLoading ? (
+          {!hasDocument ? (
+            <div style={{ textAlign: 'center', padding: '36px 20px' }}>
+              <div
+                style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '14px',
+                  background: 'linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  marginBottom: '14px',
+                  boxShadow: '0 8px 20px rgba(6, 182, 212, 0.3)',
+                }}
+              >
+                <FolderOpen size={26} />
+              </div>
+              <h4 style={{ fontSize: '17px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-primary)' }}>
+                Please select or upload a PDF
+              </h4>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '380px', margin: '0 auto 20px', lineHeight: '1.5' }}>
+                To extract structured insights, entities, and table data, AI needs a PDF document to analyze.
+              </p>
+
+              {onOpenFile && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{
+                    padding: '10px 22px',
+                    fontSize: '13.5px',
+                    margin: '0 auto 18px',
+                    background: 'linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)',
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={16} />
+                  <span>Choose PDF Document</span>
+                </button>
+              )}
+
+              {onLoadSample && (
+                <div style={{ marginTop: '10px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
+                    Or extract insights from a sample template:
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button className="sample-chip" onClick={() => onLoadSample('invoice')}>
+                      📄 Invoice (Tables & Amounts)
+                    </button>
+                    <button className="sample-chip" onClick={() => onLoadSample('contract')}>
+                      ⚖️ NDA (Dates & Parties)
+                    </button>
+                    <button className="sample-chip" onClick={() => onLoadSample('resume')}>
+                      📝 Resume (Entities)
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : isLoading ? (
             <div className="ai-loading-state">
               <div className="ai-typing-indicator" style={{ marginBottom: '12px' }}>
                 <span className="dot" />
@@ -363,7 +446,8 @@ export const AiInsightsModal: React.FC<AiInsightsModalProps> = ({
           <button
             className="btn-secondary"
             onClick={extractInsights}
-            disabled={isLoading}
+            disabled={isLoading || !hasDocument}
+            title={!hasDocument ? 'Please select a PDF document first' : 'Re-analyze document'}
           >
             <RefreshCw size={14} className={isLoading ? 'spin-icon' : ''} />
             <span>Re-analyze</span>

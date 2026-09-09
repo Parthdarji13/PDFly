@@ -11,6 +11,8 @@ import {
   RefreshCw,
   AlertCircle,
   FileCode,
+  FolderOpen,
+  Upload,
 } from 'lucide-react';
 import { DocumentState } from '../../lib/types';
 import { extractDocumentText, estimateTokens } from '../../lib/ai/textExtractor';
@@ -20,6 +22,8 @@ interface AiSummarizeModalProps {
   onClose: () => void;
   documentState: DocumentState;
   onShowToast: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  onOpenFile?: (file: File) => void;
+  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => void;
 }
 
 export const AiSummarizeModal: React.FC<AiSummarizeModalProps> = ({
@@ -27,19 +31,23 @@ export const AiSummarizeModal: React.FC<AiSummarizeModalProps> = ({
   onClose,
   documentState,
   onShowToast,
+  onOpenFile,
+  onLoadSample,
 }) => {
   const [summary, setSummary] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [summaryType, setSummaryType] = useState<'standard' | 'bullet' | 'detailed'>('standard');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const hasDocument = documentState.pages && documentState.pages.length > 0;
   const docText = React.useMemo(() => extractDocumentText(documentState), [documentState]);
   const tokenCount = React.useMemo(() => estimateTokens(docText), [docText]);
 
   const generateSummary = async () => {
-    if (!docText || docText.trim().length === 0) {
-      setErrorMsg('This document contains no readable text to summarize.');
+    if (!hasDocument || !docText || docText.trim().length === 0) {
+      setErrorMsg('Please select or upload a readable PDF document first.');
       return;
     }
 
@@ -73,12 +81,12 @@ export const AiSummarizeModal: React.FC<AiSummarizeModalProps> = ({
     }
   };
 
-  // Auto-generate summary on open if not already generated
+  // Auto-generate summary on open if document is present and not already generated
   useEffect(() => {
-    if (isOpen && !summary && !isLoading && !errorMsg) {
+    if (isOpen && hasDocument && !summary && !isLoading && !errorMsg) {
       generateSummary();
     }
-  }, [isOpen]);
+  }, [isOpen, hasDocument]);
 
   const handleCopy = () => {
     if (!summary) return;
@@ -143,9 +151,84 @@ export const AiSummarizeModal: React.FC<AiSummarizeModalProps> = ({
           </button>
         </div>
 
+        {/* Hidden file input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="application/pdf,.pdf"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f && onOpenFile) {
+              onOpenFile(f);
+            }
+          }}
+        />
+
         {/* Modal Body */}
         <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-          {isLoading ? (
+          {!hasDocument ? (
+            <div style={{ textAlign: 'center', padding: '36px 20px' }}>
+              <div
+                style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '14px',
+                  background: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  marginBottom: '14px',
+                  boxShadow: '0 8px 20px rgba(236, 72, 153, 0.3)',
+                }}
+              >
+                <FolderOpen size={26} />
+              </div>
+              <h4 style={{ fontSize: '17px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-primary)' }}>
+                Please select or upload a PDF
+              </h4>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '380px', margin: '0 auto 20px', lineHeight: '1.5' }}>
+                To generate an executive summary, AI needs a PDF document to read and synthesize.
+              </p>
+
+              {onOpenFile && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{
+                    padding: '10px 22px',
+                    fontSize: '13.5px',
+                    margin: '0 auto 18px',
+                    background: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={16} />
+                  <span>Choose PDF Document</span>
+                </button>
+              )}
+
+              {onLoadSample && (
+                <div style={{ marginTop: '10px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
+                    Or summarize a sample template:
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button className="sample-chip" onClick={() => onLoadSample('contract')}>
+                      ⚖️ NDA Contract
+                    </button>
+                    <button className="sample-chip" onClick={() => onLoadSample('invoice')}>
+                      📄 Invoice
+                    </button>
+                    <button className="sample-chip" onClick={() => onLoadSample('resume')}>
+                      📝 Resume
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : isLoading ? (
             <div className="ai-loading-state">
               <div className="ai-typing-indicator" style={{ marginBottom: '12px' }}>
                 <span className="dot" />
@@ -213,8 +296,8 @@ export const AiSummarizeModal: React.FC<AiSummarizeModalProps> = ({
             <button
               className="btn-secondary"
               onClick={generateSummary}
-              disabled={isLoading}
-              title="Regenerate summary"
+              disabled={isLoading || !hasDocument}
+              title={!hasDocument ? 'Please select a PDF document first' : 'Regenerate summary'}
             >
               <RefreshCw size={14} className={isLoading ? 'spin-icon' : ''} />
               <span>Regenerate</span>

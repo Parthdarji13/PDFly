@@ -215,9 +215,19 @@ export const AiTextAssistModal: React.FC<AiTextAssistModalProps> = ({
 
           {/* Error Banner */}
           {errorMsg && (
-            <div className="ai-error-banner" style={{ marginBottom: '14px' }}>
-              <AlertCircle size={16} />
-              <div style={{ flex: 1 }}>{errorMsg}</div>
+            <div className="ai-error-banner" style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{errorMsg}</span>
+              </div>
+              <button
+                className="btn-secondary"
+                style={{ padding: '4px 10px', fontSize: '11.5px', flexShrink: 0 }}
+                onClick={() => handleProcessText()}
+              >
+                <RefreshCw size={12} />
+                <span>Retry</span>
+              </button>
             </div>
           )}
 

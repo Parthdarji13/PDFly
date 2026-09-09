@@ -12,7 +12,7 @@ PDFly integrates Anthropic's Claude API through secure server-side Next.js route
 - Slide-out AI assistant drawer to ask questions about your document's contents.
 - Automatic text extraction from all PDF pages and added text elements with natural reading order reconstruction.
 - Smart context windowing (preserves critical sections while staying within token limits).
-- Quick question chips (Executive summary, Financial totals, Milestones & dates, Legal obligations).
+- Quick question chips (Executive summary, Financial totals, Milestones & dates, Legal obligations, Page-specific explanations).
 - Multi-turn conversation history with 1-click answer copy.
 
 ### 2. 📝 AI Auto-Summarize (`POST /api/ai/summarize`)
@@ -46,10 +46,13 @@ PDFly integrates Anthropic's Claude API through secure server-side Next.js route
 
 ---
 
-## 🔒 Security & Architecture
+## 🔒 Security, Robustness & Retry Logic
 
+- **Anthropic Claude Exclusive:** All AI calls communicate directly with `https://api.anthropic.com/v1/messages` using `claude-sonnet-4-6` (with `claude-3-5-sonnet-20241022` fallback).
 - **Zero Key Leakage:** `ANTHROPIC_API_KEY` is loaded strictly on the server in Next.js route handlers. No API key is sent to or stored in the browser.
-- **In-Memory Rate Limiting:** Built-in sliding rate limiters protect routes from abuse.
+- **Exponential Backoff Retries:** Automatically performs up to 3 retries with exponential backoff on HTTP 429 (Rate limit), 503 (Service unavailable), 529 (Overloaded), and network failures so temporary traffic spikes do not fail user requests.
+- **User-Friendly Error Handling:** If all retries fail, clean and reassuring messages are surfaced in the UI (*"The AI assistant is temporarily busy. Please try again in a moment."*) rather than raw unformatted API stack traces.
+- **In-Memory Rate Limiting:** Built-in sliding rate limiters protect routes from client-side flooding.
 - **Context Guardrails:** Safe text chunking prevents payload overflows and handles documents of any page length.
 
 ---

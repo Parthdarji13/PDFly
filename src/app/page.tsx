@@ -27,6 +27,7 @@ import { AiChatDrawer } from '../components/ai/AiChatDrawer';
 import { AiSummarizeModal } from '../components/modals/AiSummarizeModal';
 import { AiTextAssistModal } from '../components/modals/AiTextAssistModal';
 import { AiInsightsModal } from '../components/modals/AiInsightsModal';
+import { AiSelectPdfModal, AiFeatureType } from '../components/modals/AiSelectPdfModal';
 
 import { AppState, initialAppState, HistoryEntry } from '../lib/state/store';
 import { EditorElement, PageInfo, ToolType, TextElement } from '../lib/types';
@@ -57,6 +58,7 @@ export default function PDFEditorPage() {
   const [isAiSummarizeOpen, setIsAiSummarizeOpen] = useState(false);
   const [isAiTextAssistOpen, setIsAiTextAssistOpen] = useState(false);
   const [isAiInsightsOpen, setIsAiInsightsOpen] = useState(false);
+  const [aiSelectFeature, setAiSelectFeature] = useState<AiFeatureType | null>(null);
 
   // Show Toast Notification
   const showToast = useCallback(
@@ -300,31 +302,39 @@ export default function PDFEditorPage() {
           break;
         case 'chat':
           if (state.documentState.pages.length === 0) {
-            handleLoadSample('invoice');
+            setAiSelectFeature('chat');
+            showToast('Please select or upload a PDF document to use AI Chat.', 'info');
+          } else {
+            setCurrentView('editor');
+            setIsAiChatOpen(true);
           }
-          setCurrentView('editor');
-          setIsAiChatOpen(true);
           break;
         case 'summarize':
           if (state.documentState.pages.length === 0) {
-            handleLoadSample('contract');
+            setAiSelectFeature('summarize');
+            showToast('Please select or upload a PDF document to generate an AI summary.', 'info');
+          } else {
+            setCurrentView('editor');
+            setIsAiSummarizeOpen(true);
           }
-          setCurrentView('editor');
-          setIsAiSummarizeOpen(true);
           break;
         case 'insights':
           if (state.documentState.pages.length === 0) {
-            handleLoadSample('invoice');
+            setAiSelectFeature('insights');
+            showToast('Please select or upload a PDF document to extract AI insights.', 'info');
+          } else {
+            setCurrentView('editor');
+            setIsAiInsightsOpen(true);
           }
-          setCurrentView('editor');
-          setIsAiInsightsOpen(true);
           break;
         case 'aiAssist':
           if (state.documentState.pages.length === 0) {
-            handleLoadSample('resume');
+            setAiSelectFeature('aiAssist');
+            showToast('Please select or upload a PDF document to use AI Text Assist.', 'info');
+          } else {
+            setCurrentView('editor');
+            setIsAiTextAssistOpen(true);
           }
-          setCurrentView('editor');
-          setIsAiTextAssistOpen(true);
           break;
         case 'blank':
           handleLoadSample('blank');
@@ -758,9 +768,30 @@ export default function PDFEditorPage() {
             onExportPdf={() => setState((prev) => ({ ...prev, isExportModalOpen: true }))}
             onNavigateHome={() => setCurrentView('home')}
             onOpenToolModal={(tool) => handleOpenTool(tool as ToolId)}
-            onOpenAiChat={() => setIsAiChatOpen(true)}
-            onOpenAiSummarize={() => setIsAiSummarizeOpen(true)}
-            onOpenAiInsights={() => setIsAiInsightsOpen(true)}
+            onOpenAiChat={() => {
+              if (state.documentState.pages.length === 0) {
+                setAiSelectFeature('chat');
+                showToast('Please select or upload a PDF document to use AI Chat.', 'info');
+              } else {
+                setIsAiChatOpen(true);
+              }
+            }}
+            onOpenAiSummarize={() => {
+              if (state.documentState.pages.length === 0) {
+                setAiSelectFeature('summarize');
+                showToast('Please select or upload a PDF document to generate an AI summary.', 'info');
+              } else {
+                setIsAiSummarizeOpen(true);
+              }
+            }}
+            onOpenAiInsights={() => {
+              if (state.documentState.pages.length === 0) {
+                setAiSelectFeature('insights');
+                showToast('Please select or upload a PDF document to extract AI insights.', 'info');
+              } else {
+                setIsAiInsightsOpen(true);
+              }
+            }}
           />
 
           {/* Tool Ribbon */}
@@ -792,9 +823,30 @@ export default function PDFEditorPage() {
               onDeletePage={handleDeletePage}
               onDuplicatePage={handleDuplicatePage}
               onAddBlankPage={handleAddBlankPage}
-              onOpenAiChat={() => setIsAiChatOpen(true)}
-              onOpenAiSummarize={() => setIsAiSummarizeOpen(true)}
-              onOpenAiInsights={() => setIsAiInsightsOpen(true)}
+              onOpenAiChat={() => {
+                if (state.documentState.pages.length === 0) {
+                  setAiSelectFeature('chat');
+                  showToast('Please select or upload a PDF document to use AI Chat.', 'info');
+                } else {
+                  setIsAiChatOpen(true);
+                }
+              }}
+              onOpenAiSummarize={() => {
+                if (state.documentState.pages.length === 0) {
+                  setAiSelectFeature('summarize');
+                  showToast('Please select or upload a PDF document to generate an AI summary.', 'info');
+                } else {
+                  setIsAiSummarizeOpen(true);
+                }
+              }}
+              onOpenAiInsights={() => {
+                if (state.documentState.pages.length === 0) {
+                  setAiSelectFeature('insights');
+                  showToast('Please select or upload a PDF document to extract AI insights.', 'info');
+                } else {
+                  setIsAiInsightsOpen(true);
+                }
+              }}
             />
 
             {/* Multi-Page Canvas Viewport */}
@@ -819,11 +871,38 @@ export default function PDFEditorPage() {
       )}
 
       {/* ================= ALL MODALS & AI DRAWERS ================= */}
+      {/* AI Feature Document Prompt Modal */}
+      <AiSelectPdfModal
+        isOpen={aiSelectFeature !== null}
+        onClose={() => setAiSelectFeature(null)}
+        feature={aiSelectFeature || 'general'}
+        onSelectFile={async (file) => {
+          const targetFeat = aiSelectFeature;
+          setAiSelectFeature(null);
+          await handleOpenFile(file);
+          if (targetFeat === 'chat') setIsAiChatOpen(true);
+          else if (targetFeat === 'summarize') setIsAiSummarizeOpen(true);
+          else if (targetFeat === 'insights') setIsAiInsightsOpen(true);
+          else if (targetFeat === 'aiAssist') setIsAiTextAssistOpen(true);
+        }}
+        onSelectSample={async (sampleType) => {
+          const targetFeat = aiSelectFeature;
+          setAiSelectFeature(null);
+          await handleLoadSample(sampleType);
+          if (targetFeat === 'chat') setIsAiChatOpen(true);
+          else if (targetFeat === 'summarize') setIsAiSummarizeOpen(true);
+          else if (targetFeat === 'insights') setIsAiInsightsOpen(true);
+          else if (targetFeat === 'aiAssist') setIsAiTextAssistOpen(true);
+        }}
+      />
+
       <AiChatDrawer
         isOpen={isAiChatOpen}
         onClose={() => setIsAiChatOpen(false)}
         documentState={state.documentState}
         activePageIndex={state.activePageIndex}
+        onOpenFile={handleOpenFile}
+        onLoadSample={handleLoadSample}
       />
 
       <AiSummarizeModal
@@ -831,6 +910,8 @@ export default function PDFEditorPage() {
         onClose={() => setIsAiSummarizeOpen(false)}
         documentState={state.documentState}
         onShowToast={showToast}
+        onOpenFile={handleOpenFile}
+        onLoadSample={handleLoadSample}
       />
 
       <AiTextAssistModal
@@ -851,6 +932,8 @@ export default function PDFEditorPage() {
         documentState={state.documentState}
         onRenameDocument={handleRenameDocument}
         onShowToast={showToast}
+        onOpenFile={handleOpenFile}
+        onLoadSample={handleLoadSample}
       />
 
       <MergePdfModal

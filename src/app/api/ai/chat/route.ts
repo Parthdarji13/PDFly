@@ -57,9 +57,8 @@ ${isTruncated ? '\nNote: The document was very large, so an excerpt of the most 
     });
   } catch (err: any) {
     console.error('API /api/ai/chat error:', err);
-    return NextResponse.json(
-      { error: err.message || 'Failed to generate response from Claude AI.' },
-      { status: err.message?.startsWith('MISSING_API_KEY') ? 401 : 500 }
-    );
+    const message = err.message || 'The AI assistant is temporarily busy. Please try again in a moment.';
+    const status = message.includes('not configured') || message.includes('invalid or expired') ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

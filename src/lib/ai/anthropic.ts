@@ -1,7 +1,7 @@
 /**
- * Unified Server-Side AI Helper for PDFly
- * Supports Google Gemini API (gemini-2.5-flash, gemini-1.5-flash, gemini-1.5-pro)
- * and Anthropic Claude API (claude-sonnet-4-6, claude-3-5-sonnet).
+ * Centralized Server-Side AI Engine for PDFly
+ * Supports Google Gemini API (with robust exponential backoff, model fallback & 30s timeout)
+ * and Anthropic Claude API.
  *
  * Securely communicates with AI APIs from Next.js Route Handlers.
  */
@@ -32,7 +32,7 @@ export interface ClaudeResponse {
 // In-memory rate limiter per IP / session
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
-export function checkRateLimit(identifier: string, limit = 50, windowMs = 60000): { allowed: boolean; remaining: number } {
+export function checkRateLimit(identifier: string, limit = 60, windowMs = 60000): { allowed: boolean; remaining: number } {
   const now = Date.now();
   const record = rateLimitMap.get(identifier);
 
@@ -57,7 +57,6 @@ export function prepareDocumentContext(text: string, maxChars: number = 80000): 
     return { text: text || '', isTruncated: false };
   }
 
-  // Preserve beginning and end if very long
   const headSize = Math.floor(maxChars * 0.7);
   const tailSize = Math.floor(maxChars * 0.3);
   const head = text.substring(0, headSize);
@@ -70,14 +69,31 @@ export function prepareDocumentContext(text: string, maxChars: number = 80000): 
 }
 
 /**
- * Calls Google Gemini API
+ * Helper to wait for a specified number of milliseconds
  */
-async function callGemini(apiKey: string, options: ClaudeRequestOptions, modelOverride?: string): Promise<ClaudeResponse> {
-  const model = modelOverride || options.model || process.env.GEMINI_MODEL || 'gemini-flash-latest';
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Fallback Gemini models in order of priority
+const GEMINI_FALLBACK_MODELS = [
+  'gemini-flash-latest',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-pro-latest',
+];
+
+/**
+ * Calls Google Gemini API with exponential backoff retry and automatic model fallback.
+ * Handles 503 (high demand/overloaded), 429 (rate limit), and network timeouts.
+ */
+async function callGeminiWithRetry(apiKey: string, options: ClaudeRequestOptions): Promise<ClaudeResponse> {
+  const preferredModel = options.model || process.env.GEMINI_MODEL || 'gemini-flash-latest';
+  const modelQueue = [preferredModel, ...GEMINI_FALLBACK_MODELS.filter((m) => m !== preferredModel)];
 
   const contents = options.messages.map((m) => ({
     role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content || '' }],
+    parts: [{ text: String(m.content || '') }],
   }));
 
   const body: any = {
@@ -94,69 +110,129 @@ async function callGemini(apiKey: string, options: ClaudeRequestOptions, modelOv
     };
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  let lastErrorDetail = '';
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey.trim(),
-    },
-    body: JSON.stringify(body),
-  });
+  for (const currentModel of modelQueue) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent`;
+    const maxRetries = 3;
 
-  if (!response.ok) {
-    let errorDetail = '';
-    try {
-      const errJson = await response.json();
-      errorDetail = errJson?.error?.message || JSON.stringify(errJson);
-    } catch {
-      errorDetail = await response.text();
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // 30-second timeout controller
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey.trim(),
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          const candidate = data.candidates?.[0];
+          const textContent =
+            candidate?.content?.parts?.map((p: any) => p.text || '')?.join('\n') || '';
+
+          return {
+            content: textContent,
+            model: `gemini (${currentModel})`,
+            usage: {
+              input_tokens: data.usageMetadata?.promptTokenCount || 0,
+              output_tokens: data.usageMetadata?.candidatesTokenCount || 0,
+            },
+          };
+        }
+
+        // Handle error response
+        let errorJson: any = null;
+        try {
+          errorJson = await response.json();
+          lastErrorDetail = errorJson?.error?.message || JSON.stringify(errorJson);
+        } catch {
+          lastErrorDetail = await response.text();
+        }
+
+        // Log actual error details to server console for debugging
+        console.error(
+          `[Gemini AI Error] Model: ${currentModel} | Attempt: ${attempt + 1}/${maxRetries} | Status: ${response.status} | Detail: ${lastErrorDetail}`
+        );
+
+        // 400 with invalid key -> Bad API key
+        if (response.status === 400 && lastErrorDetail.includes('API_KEY_INVALID')) {
+          throw new Error('The provided AI API Key is invalid. Please check your key in .env.local.');
+        }
+
+        // 404 Model Not Found -> Immediately try next fallback model
+        if (response.status === 404) {
+          console.warn(`[Gemini AI] Model ${currentModel} not available (404). Trying next fallback model...`);
+          break; // Break inner retry loop to try next model in modelQueue
+        }
+
+        // 503 (Overloaded/High demand), 429 (Rate limit), 500, 502, 504 -> Exponential backoff retry
+        const isTransientError =
+          response.status === 503 ||
+          response.status === 429 ||
+          response.status === 500 ||
+          response.status === 502 ||
+          response.status === 504;
+
+        if (isTransientError && attempt < maxRetries - 1) {
+          const delayMs = Math.min(1000 * Math.pow(2, attempt) + Math.random() * 300, 8000);
+          console.warn(
+            `[Gemini AI] Status ${response.status} on ${currentModel}. Retrying in ${Math.round(delayMs)}ms (attempt ${attempt + 1}/${maxRetries})...`
+          );
+          await wait(delayMs);
+          continue;
+        }
+
+        // If retries exhausted for this model, try next model in queue
+        break;
+      } catch (err: any) {
+        lastErrorDetail = err.message || String(err);
+        console.error(
+          `[Gemini AI Exception] Model: ${currentModel} | Attempt: ${attempt + 1}/${maxRetries} | Error: ${lastErrorDetail}`
+        );
+
+        if (err.message?.includes('invalid')) {
+          throw err;
+        }
+
+        // Network or timeout abort
+        if (attempt < maxRetries - 1) {
+          const delayMs = Math.min(1000 * Math.pow(2, attempt) + Math.random() * 300, 8000);
+          await wait(delayMs);
+          continue;
+        }
+        break;
+      }
     }
-
-    // Fallback if specific model is unavailable
-    if (response.status === 404 && model !== 'gemini-pro-latest') {
-      return callGemini(apiKey, options, 'gemini-pro-latest');
-    }
-
-    if (response.status === 400 && errorDetail.includes('API_KEY_INVALID')) {
-      throw new Error('INVALID_API_KEY: The provided Google Gemini API Key is invalid.');
-    }
-
-    if (response.status === 429) {
-      throw new Error('RATE_LIMITED: Google Gemini rate limit reached. Please wait a moment.');
-    }
-
-    throw new Error(`Gemini API Error (${response.status}): ${errorDetail}`);
   }
 
-  const data = await response.json();
-  const candidate = data.candidates?.[0];
-  const textContent = candidate?.content?.parts?.map((p: any) => p.text || '')?.join('\n') || '';
-
-  return {
-    content: textContent,
-    model: `gemini (${model})`,
-    usage: {
-      input_tokens: data.usageMetadata?.promptTokenCount || 0,
-      output_tokens: data.usageMetadata?.candidatesTokenCount || 0,
-    },
-  };
+  // All retries and fallback models failed -> Friendly non-technical message
+  console.error('[Gemini AI] All models and retries exhausted. Final error:', lastErrorDetail);
+  throw new Error('The AI assistant is busy right now. Please try again in a moment.');
 }
 
 /**
- * Calls Anthropic Claude API
+ * Calls Anthropic Claude API with exponential backoff retry and 30s timeout.
  */
-async function callAnthropic(apiKey: string, options: ClaudeRequestOptions, modelOverride?: string): Promise<ClaudeResponse> {
-  const model = modelOverride || options.model || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
+async function callAnthropicWithRetry(apiKey: string, options: ClaudeRequestOptions): Promise<ClaudeResponse> {
+  const model = options.model || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
 
   const body: any = {
     model: model,
     max_tokens: options.maxTokens || 2048,
-    temperature: options.temperature ?? 0.3,
+    temperature: options.temperature ?? 0.2,
     messages: options.messages.map((m) => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: m.content || '',
+      content: String(m.content || ''),
     })),
   };
 
@@ -164,77 +240,111 @@ async function callAnthropic(apiKey: string, options: ClaudeRequestOptions, mode
     body.system = options.systemPrompt;
   }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey.trim(),
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(body),
-  });
+  const maxRetries = 3;
+  let lastErrorDetail = '';
 
-  if (!response.ok) {
-    let errorDetail = '';
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const errJson = await response.json();
-      errorDetail = errJson?.error?.message || JSON.stringify(errJson);
-    } catch {
-      errorDetail = await response.text();
-    }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-    if (response.status === 401) {
-      throw new Error('INVALID_API_KEY: The provided Anthropic API Key is invalid or expired.');
-    }
-    if (response.status === 429) {
-      throw new Error('RATE_LIMITED: Anthropic API rate limit reached. Please wait a moment.');
-    }
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey.trim(),
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
 
-    // Fallback to claude-3-5-sonnet if 4-6 is not available on key tier
-    if (response.status === 404 && model !== 'claude-3-5-sonnet-20241022') {
-      return callAnthropic(apiKey, options, 'claude-3-5-sonnet-20241022');
-    }
+      clearTimeout(timeoutId);
 
-    throw new Error(`Anthropic API Error (${response.status}): ${errorDetail}`);
+      if (response.ok) {
+        const data = await response.json();
+        const textContent =
+          data.content
+            ?.filter((c: any) => c.type === 'text')
+            ?.map((c: any) => c.text)
+            ?.join('\n') || '';
+
+        return {
+          content: textContent,
+          model: data.model || model,
+          usage: data.usage,
+        };
+      }
+
+      let errorJson: any = null;
+      try {
+        errorJson = await response.json();
+        lastErrorDetail = errorJson?.error?.message || JSON.stringify(errorJson);
+      } catch {
+        lastErrorDetail = await response.text();
+      }
+
+      console.error(
+        `[Anthropic AI Error] Model: ${model} | Attempt: ${attempt + 1}/${maxRetries} | Status: ${response.status} | Detail: ${lastErrorDetail}`
+      );
+
+      if (response.status === 401) {
+        throw new Error('The provided AI API Key is invalid or expired. Please check your key in .env.local.');
+      }
+
+      if (response.status === 404 && model !== 'claude-3-5-sonnet-20241022') {
+        return callAnthropicWithRetry(apiKey, { ...options, model: 'claude-3-5-sonnet-20241022' });
+      }
+
+      const isTransient = response.status === 429 || response.status === 503 || response.status === 529;
+
+      if (isTransient && attempt < maxRetries - 1) {
+        const delayMs = Math.min(1000 * Math.pow(2, attempt) + Math.random() * 300, 8000);
+        console.warn(`[Anthropic AI] Status ${response.status}. Retrying in ${Math.round(delayMs)}ms...`);
+        await wait(delayMs);
+        continue;
+      }
+
+      break;
+    } catch (err: any) {
+      lastErrorDetail = err.message || String(err);
+      if (err.message?.includes('invalid')) throw err;
+
+      if (attempt < maxRetries - 1) {
+        const delayMs = Math.min(1000 * Math.pow(2, attempt) + Math.random() * 300, 8000);
+        await wait(delayMs);
+        continue;
+      }
+      break;
+    }
   }
 
-  const data = await response.json();
-  const textContent = data.content
-    ?.filter((c: any) => c.type === 'text')
-    ?.map((c: any) => c.text)
-    ?.join('\n') || '';
-
-  return {
-    content: textContent,
-    model: data.model || model,
-    usage: data.usage,
-  };
+  console.error('[Anthropic AI] All retries exhausted. Final error:', lastErrorDetail);
+  throw new Error('The AI assistant is busy right now. Please try again in a moment.');
 }
 
 /**
- * Unified AI Caller:
- * Automatically uses Gemini API if GEMINI_API_KEY is configured,
- * or Anthropic API if ANTHROPIC_API_KEY is configured.
+ * Unified Centralized AI Dispatcher:
+ * Automatically uses Gemini API with retries & fallbacks if GEMINI_API_KEY is configured,
+ * or Anthropic Claude API if ANTHROPIC_API_KEY is configured.
  */
 export async function callClaude(options: ClaudeRequestOptions): Promise<ClaudeResponse> {
   const geminiKey = process.env.GEMINI_API_KEY;
   const anthropicKey = options.apiKeyOverride || process.env.ANTHROPIC_API_KEY;
 
-  // 1. If Gemini key is set and valid, use Gemini
+  // 1. If Gemini key is set and valid, use Gemini with retries and fallback models
   if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey.trim() !== '') {
-    return callGemini(geminiKey, options);
+    return callGeminiWithRetry(geminiKey, options);
   }
 
-  // 2. If Anthropic key is set and valid, use Anthropic
+  // 2. If Anthropic key is set and valid, use Anthropic with retries
   if (anthropicKey && anthropicKey !== 'your_anthropic_api_key_here' && anthropicKey.trim() !== '') {
-    return callAnthropic(anthropicKey, options);
+    return callAnthropicWithRetry(anthropicKey, options);
   }
 
-  // 3. Neither key is configured
-  throw new Error(
-    'MISSING_API_KEY: No AI API Key is configured. Please add GEMINI_API_KEY or ANTHROPIC_API_KEY to your .env.local file.'
-  );
+  // 3. No key configured
+  throw new Error('AI Assistant is not configured. Please add your GEMINI_API_KEY to your .env.local file.');
 }
 
-// Alias for export compatibility
+// Type aliases for cross-compatibility
 export type AnthropicMessage = AiMessage;

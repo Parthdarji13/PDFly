@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     const rateCheck = checkRateLimit(ip, 50, 60000);
     if (!rateCheck.allowed) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded. Please wait a moment.' },
+        { error: 'The AI assistant is busy right now. Please try again in a moment.' },
         { status: 429 }
       );
     }
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         break;
     }
 
-    const systemPrompt = `You are PDFly AI Text Assist — a precision writing and editing tool powered by Claude.
+    const systemPrompt = `You are PDFly AI Text Assist — a precision writing and editing tool.
 Your goal is to transform the user's provided text according to this instruction: "${instruction}".
 
 CRITICAL INSTRUCTIONS:
@@ -63,7 +63,7 @@ CRITICAL INSTRUCTIONS:
       systemPrompt,
       messages: [{ role: 'user', content: originalText }],
       maxTokens: 1024,
-      temperature: 0.3,
+      temperature: 0.2,
       apiKeyOverride: apiKey,
     });
 
@@ -75,9 +75,8 @@ CRITICAL INSTRUCTIONS:
     });
   } catch (err: any) {
     console.error('API /api/ai/edit-assist error:', err);
-    return NextResponse.json(
-      { error: err.message || 'Failed to process AI text assist.' },
-      { status: err.message?.startsWith('MISSING_API_KEY') ? 401 : 500 }
-    );
+    const message = err.message || 'The AI assistant is busy right now. Please try again in a moment.';
+    const status = message.includes('not configured') || message.includes('invalid') ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
