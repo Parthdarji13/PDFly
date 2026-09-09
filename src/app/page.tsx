@@ -253,6 +253,8 @@ export default function PDFEditorPage() {
             handleLoadSample('invoice');
           }
           setCurrentView('editor');
+          setState((prev) => ({ ...prev, selectedTool: 'editText' }));
+          showToast('Click any text on the page to edit it directly with matched fonts!', 'info');
           break;
         case 'merge':
           setIsMergeModalOpen(true);
@@ -686,11 +688,20 @@ export default function PDFEditorPage() {
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement;
+      const target = e.target as HTMLElement | null;
+      const activeEl = document.activeElement as HTMLElement | null;
       const isInput =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable ||
+        Boolean(target?.closest('input, textarea, [contenteditable="true"]')) ||
         activeEl?.tagName === 'INPUT' ||
         activeEl?.tagName === 'TEXTAREA' ||
-        activeEl?.getAttribute('contenteditable') === 'true';
+        activeEl?.isContentEditable ||
+        Boolean(activeEl?.closest('input, textarea, [contenteditable="true"]'));
+
+      // If user is currently typing in an input, textarea or editable block, ignore all global shortcuts
+      if (isInput) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
@@ -707,8 +718,6 @@ export default function PDFEditorPage() {
         handleRedo();
         return;
       }
-
-      if (isInput) return;
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (state.selectedElementId) {

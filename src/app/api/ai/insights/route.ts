@@ -87,9 +87,8 @@ You MUST respond ONLY with valid JSON in this exact structure without code markd
     });
   } catch (err: any) {
     console.error('API /api/ai/insights error:', err);
-    return NextResponse.json(
-      { error: err.message || 'Failed to extract document insights.' },
-      { status: err.message?.startsWith('MISSING_API_KEY') ? 401 : 500 }
-    );
+    const message = err.message || 'Failed to extract document insights with AI Assistant.';
+    const status = message.includes('not configured') || message.includes('invalid') ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

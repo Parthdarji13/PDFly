@@ -10,14 +10,11 @@ import {
   AlignRight,
   Trash2,
   Copy,
-  Layers,
-  Square,
-  Circle,
+  Plus,
   Minus,
-  MoveRight,
-  Check,
-  Type,
   Sparkles,
+  Palette,
+  Highlighter,
 } from 'lucide-react';
 import { AppState } from '../lib/state/store';
 import { AVAILABLE_FONTS } from '../lib/pdf/fontMatcher';
@@ -30,6 +27,57 @@ interface InspectorProps {
   onDuplicateSelected: () => void;
   onOpenAiTextAssist?: () => void;
 }
+
+// Preset color swatches
+const TEXT_COLORS = [
+  { hex: '#0f172a', label: 'Dark / Black' },
+  { hex: '#475569', label: 'Slate' },
+  { hex: '#2563eb', label: 'Royal Blue' },
+  { hex: '#7c3aed', label: 'Purple' },
+  { hex: '#16a34a', label: 'Green' },
+  { hex: '#ea580c', label: 'Orange' },
+  { hex: '#dc2626', label: 'Red' },
+  { hex: '#ffffff', label: 'White' },
+];
+
+const BG_HIGHLIGHT_COLORS = [
+  { hex: 'transparent', label: 'None (Transparent)' },
+  { hex: '#ffffff', label: 'White Patch (Whiteout)' },
+  { hex: '#fef08a', label: 'Yellow Highlight' },
+  { hex: '#bbf7d0', label: 'Green Highlight' },
+  { hex: '#bfdbfe', label: 'Blue Highlight' },
+  { hex: '#fecdd3', label: 'Pink Highlight' },
+  { hex: '#f3e8ff', label: 'Purple Highlight' },
+];
+
+const SHAPE_STROKE_COLORS = [
+  '#2563eb',
+  '#6366f1',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#0f172a',
+  '#ffffff',
+];
+
+const PEN_COLORS = [
+  '#ef4444',
+  '#2563eb',
+  '#10b981',
+  '#0f172a',
+  '#ffffff',
+  '#f59e0b',
+  '#8b5cf6',
+];
+
+const HIGHLIGHTER_COLORS = [
+  '#facc15',
+  '#4ade80',
+  '#60a5fa',
+  '#f472b6',
+  '#fb923c',
+  '#c084fc',
+];
 
 export const Inspector: React.FC<InspectorProps> = ({
   state,
@@ -45,10 +93,12 @@ export const Inspector: React.FC<InspectorProps> = ({
   const activeTool = state.selectedTool;
 
   // Render when tool or selection requires inspector controls
-  const showTextControls = activeTool === 'addText' || activeTool === 'editText' || selectedEl?.type === 'text';
+  const showTextControls =
+    activeTool === 'addText' || activeTool === 'editText' || selectedEl?.type === 'text';
   const showShapeControls = activeTool === 'shape' || selectedEl?.type === 'shape';
-  const showDrawControls = activeTool === 'draw' || activeTool === 'highlighter' || selectedEl?.type === 'draw';
-  const showGenericControls = !!selectedEl;
+  const showDrawControls =
+    activeTool === 'draw' || activeTool === 'highlighter' || selectedEl?.type === 'draw';
+  const showGenericControls = Boolean(selectedEl);
 
   if (!showTextControls && !showShapeControls && !showDrawControls && !showGenericControls) {
     return null;
@@ -120,8 +170,13 @@ export const Inspector: React.FC<InspectorProps> = ({
 
   const currentTextColor =
     selectedEl?.type === 'text'
-      ? (selectedEl as TextElement).color
-      : state.activeTextConfig.color;
+      ? (selectedEl as TextElement).color || '#0f172a'
+      : state.activeTextConfig.color || '#0f172a';
+
+  const currentBgColor =
+    selectedEl?.type === 'text'
+      ? (selectedEl as TextElement).backgroundColor || 'transparent'
+      : state.activeTextConfig.backgroundColor || 'transparent';
 
   const currentAlign =
     selectedEl?.type === 'text'
@@ -129,345 +184,537 @@ export const Inspector: React.FC<InspectorProps> = ({
       : state.activeTextConfig.align;
 
   return (
-    <aside className="inspector-bar">
-      {/* ---------------- Text Controls ---------------- */}
-      {showTextControls && (
-        <>
-          {/* Font Family Selector */}
-          <div className="inspector-group">
-            <span className="inspector-label">Font:</span>
-            <select
-              className="inspector-select"
-              value={currentFontFamily}
-              onChange={(e) => {
-                const selected = AVAILABLE_FONTS.find((f) => f.name === e.target.value || f.id === e.target.value);
-                const fam = selected ? selected.name : e.target.value;
-                const pKey = selected ? selected.pdfKey : 'Helvetica';
-                updateSelectedText({ fontFamily: fam, pdfFontKey: pKey });
-              }}
-            >
-              {AVAILABLE_FONTS.map((font) => (
-                <option key={font.id} value={font.name}>
-                  {font.name} ({font.category})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Font Size */}
-          <div className="inspector-group">
-            <span className="inspector-label">Size:</span>
-            <input
-              type="number"
-              className="inspector-input-number"
-              min={6}
-              max={144}
-              value={Math.round(currentFontSize)}
-              onChange={(e) => {
-                const s = parseInt(e.target.value, 10);
-                if (!isNaN(s) && s > 0) updateSelectedText({ fontSize: s });
-              }}
-            />
-            <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>pt</span>
-          </div>
-
-          {/* Bold, Italic, Underline */}
-          <div className="inspector-group">
-            <button
-              className={`inspector-btn-toggle ${currentFontWeight === 'bold' ? 'active' : ''}`}
-              onClick={() =>
-                updateSelectedText({
-                  fontWeight: currentFontWeight === 'bold' ? 'normal' : 'bold',
-                })
-              }
-              title="Bold"
-            >
-              <Bold size={14} />
-            </button>
-            <button
-              className={`inspector-btn-toggle ${currentFontStyle === 'italic' ? 'active' : ''}`}
-              onClick={() =>
-                updateSelectedText({
-                  fontStyle: currentFontStyle === 'italic' ? 'normal' : 'italic',
-                })
-              }
-              title="Italic"
-            >
-              <Italic size={14} />
-            </button>
-            <button
-              className={`inspector-btn-toggle ${currentUnderline ? 'active' : ''}`}
-              onClick={() => updateSelectedText({ underline: !currentUnderline })}
-              title="Underline"
-            >
-              <Underline size={14} />
-            </button>
-          </div>
-
-          {/* Alignment */}
-          <div className="inspector-group">
-            <button
-              className={`inspector-btn-toggle ${currentAlign === 'left' ? 'active' : ''}`}
-              onClick={() => updateSelectedText({ align: 'left' })}
-              title="Align Left"
-            >
-              <AlignLeft size={14} />
-            </button>
-            <button
-              className={`inspector-btn-toggle ${currentAlign === 'center' ? 'active' : ''}`}
-              onClick={() => updateSelectedText({ align: 'center' })}
-              title="Align Center"
-            >
-              <AlignCenter size={14} />
-            </button>
-            <button
-              className={`inspector-btn-toggle ${currentAlign === 'right' ? 'active' : ''}`}
-              onClick={() => updateSelectedText({ align: 'right' })}
-              title="Align Right"
-            >
-              <AlignRight size={14} />
-            </button>
-          </div>
-
-          {/* Text Color */}
-          <div className="inspector-group">
-            <span className="inspector-label">Color:</span>
-            <div className="color-swatch-btn" style={{ backgroundColor: currentTextColor }}>
-              <input
-                type="color"
-                className="color-input-hidden"
-                value={currentTextColor.startsWith('#') ? currentTextColor : '#000000'}
-                onChange={(e) => updateSelectedText({ color: e.target.value })}
-              />
+    <div className="inspector-container">
+      <aside className="inspector-bar">
+        {/* ---------------- Text Controls ---------------- */}
+        {showTextControls && (
+          <>
+            {/* Font Family Selector */}
+            <div className="inspector-group">
+              <span className="inspector-label">Font:</span>
+              <select
+                className="inspector-select font-family-select"
+                value={currentFontFamily}
+                onChange={(e) => {
+                  const selected = AVAILABLE_FONTS.find(
+                    (f) => f.name === e.target.value || f.id === e.target.value
+                  );
+                  const fam = selected ? selected.name : e.target.value;
+                  const pKey = selected ? selected.pdfKey : 'Helvetica';
+                  updateSelectedText({ fontFamily: fam, pdfFontKey: pKey });
+                }}
+              >
+                {AVAILABLE_FONTS.map((font) => (
+                  <option key={font.id} value={font.name}>
+                    {font.name}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* AI Text Assist Trigger */}
-          {onOpenAiTextAssist && selectedEl?.type === 'text' && (
+            <div className="inspector-divider" />
+
+            {/* Font Size with Step Buttons */}
+            <div className="inspector-group">
+              <span className="inspector-label">Size:</span>
+              <div className="inspector-number-stepper">
+                <button
+                  className="inspector-btn-step"
+                  onClick={() =>
+                    updateSelectedText({ fontSize: Math.max(6, currentFontSize - 1) })
+                  }
+                  title="Decrease Font Size"
+                >
+                  <Minus size={12} />
+                </button>
+                <input
+                  type="number"
+                  className="inspector-input-number"
+                  min={6}
+                  max={144}
+                  value={Math.round(currentFontSize)}
+                  onChange={(e) => {
+                    const s = parseInt(e.target.value, 10);
+                    if (!isNaN(s) && s > 0) updateSelectedText({ fontSize: s });
+                  }}
+                />
+                <button
+                  className="inspector-btn-step"
+                  onClick={() =>
+                    updateSelectedText({ fontSize: Math.min(144, currentFontSize + 1) })
+                  }
+                  title="Increase Font Size"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+            </div>
+
+            <div className="inspector-divider" />
+
+            {/* Bold, Italic, Underline */}
             <div className="inspector-group">
               <button
-                className="btn-primary"
-                style={{
-                  padding: '4px 10px',
-                  fontSize: '11.5px',
-                  gap: '4px',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-                }}
-                onClick={onOpenAiTextAssist}
-                title="Use Claude AI to fix grammar, rewrite tone, concise or translate selected text"
+                className={`inspector-btn-toggle ${currentFontWeight === 'bold' ? 'active' : ''}`}
+                onClick={() =>
+                  updateSelectedText({
+                    fontWeight: currentFontWeight === 'bold' ? 'normal' : 'bold',
+                  })
+                }
+                title="Bold"
               >
-                <Sparkles size={13} />
-                <span>AI Assist</span>
+                <Bold size={14} />
+              </button>
+              <button
+                className={`inspector-btn-toggle ${currentFontStyle === 'italic' ? 'active' : ''}`}
+                onClick={() =>
+                  updateSelectedText({
+                    fontStyle: currentFontStyle === 'italic' ? 'normal' : 'italic',
+                  })
+                }
+                title="Italic"
+              >
+                <Italic size={14} />
+              </button>
+              <button
+                className={`inspector-btn-toggle ${currentUnderline ? 'active' : ''}`}
+                onClick={() => updateSelectedText({ underline: !currentUnderline })}
+                title="Underline"
+              >
+                <Underline size={14} />
               </button>
             </div>
-          )}
-        </>
-      )}
 
-      {/* ---------------- Shape Controls ---------------- */}
-      {showShapeControls && (
-        <>
-          {/* Shape Type Selector */}
-          <div className="inspector-group">
-            <span className="inspector-label">Shape:</span>
-            <select
-              className="inspector-select"
-              value={
-                selectedEl?.type === 'shape'
-                  ? (selectedEl as ShapeElement).shapeType
-                  : state.activeShape
-              }
-              onChange={(e) => {
-                const st = e.target.value as ShapeType;
-                if (selectedEl?.type === 'shape') {
-                  updateSelectedShape({ shapeType: st });
-                } else {
-                  onUpdateState((prev) => ({ ...prev, activeShape: st }));
-                }
-              }}
-            >
-              <option value="rect">Rectangle</option>
-              <option value="roundedRect">Rounded Box</option>
-              <option value="circle">Circle / Ellipse</option>
-              <option value="line">Straight Line</option>
-              <option value="arrow">Arrow</option>
-              <option value="checkmark">Checkmark</option>
-            </select>
-          </div>
+            <div className="inspector-divider" />
 
-          {/* Stroke Width */}
-          <div className="inspector-group">
-            <span className="inspector-label">Border:</span>
-            <input
-              type="number"
-              className="inspector-input-number"
-              min={0}
-              max={24}
-              value={selectedEl?.type === 'shape' ? (selectedEl as ShapeElement).strokeWidth : 2}
-              onChange={(e) => {
-                const w = parseInt(e.target.value, 10);
-                if (!isNaN(w)) updateSelectedShape({ strokeWidth: w });
-              }}
-            />
-            <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>px</span>
-          </div>
-
-          {/* Stroke Color */}
-          <div className="inspector-group">
-            <span className="inspector-label">Stroke:</span>
-            <div
-              className="color-swatch-btn"
-              style={{
-                backgroundColor:
-                  selectedEl?.type === 'shape'
-                    ? (selectedEl as ShapeElement).strokeColor
-                    : '#2563eb',
-              }}
-            >
-              <input
-                type="color"
-                className="color-input-hidden"
-                value={
-                  selectedEl?.type === 'shape'
-                    ? (selectedEl as ShapeElement).strokeColor
-                    : '#2563eb'
-                }
-                onChange={(e) => updateSelectedShape({ strokeColor: e.target.value })}
-              />
-            </div>
-          </div>
-
-          {/* Fill Color */}
-          <div className="inspector-group">
-            <span className="inspector-label">Fill:</span>
-            <select
-              className="inspector-select"
-              value={
-                selectedEl?.type === 'shape' && (selectedEl as ShapeElement).fillColor !== 'transparent'
-                  ? 'custom'
-                  : 'transparent'
-              }
-              onChange={(e) => {
-                if (e.target.value === 'transparent') {
-                  updateSelectedShape({ fillColor: 'transparent' });
-                } else {
-                  updateSelectedShape({ fillColor: '#6366f133' });
-                }
-              }}
-            >
-              <option value="transparent">Transparent</option>
-              <option value="custom">Filled Color</option>
-            </select>
-
-            {selectedEl?.type === 'shape' && (selectedEl as ShapeElement).fillColor !== 'transparent' && (
-              <div
-                className="color-swatch-btn"
-                style={{ backgroundColor: (selectedEl as ShapeElement).fillColor }}
+            {/* Alignment */}
+            <div className="inspector-group">
+              <button
+                className={`inspector-btn-toggle ${currentAlign === 'left' ? 'active' : ''}`}
+                onClick={() => updateSelectedText({ align: 'left' })}
+                title="Align Left"
               >
-                <input
-                  type="color"
-                  className="color-input-hidden"
-                  value={((selectedEl as ShapeElement).fillColor || '#ffffff').substring(0, 7)}
-                  onChange={(e) => updateSelectedShape({ fillColor: e.target.value })}
-                />
-              </div>
-            )}
-          </div>
-        </>
-      )}
+                <AlignLeft size={14} />
+              </button>
+              <button
+                className={`inspector-btn-toggle ${currentAlign === 'center' ? 'active' : ''}`}
+                onClick={() => updateSelectedText({ align: 'center' })}
+                title="Align Center"
+              >
+                <AlignCenter size={14} />
+              </button>
+              <button
+                className={`inspector-btn-toggle ${currentAlign === 'right' ? 'active' : ''}`}
+                onClick={() => updateSelectedText({ align: 'right' })}
+                title="Align Right"
+              >
+                <AlignRight size={14} />
+              </button>
+            </div>
 
-      {/* ---------------- Freehand / Highlighter Controls ---------------- */}
-      {showDrawControls && (
-        <>
-          <div className="inspector-group">
-            <span className="inspector-label">
-              {activeTool === 'highlighter' ? 'Highlighter' : 'Pen Color'}:
-            </span>
-            <div
-              className="color-swatch-btn"
-              style={{
-                backgroundColor:
-                  activeTool === 'highlighter'
-                    ? state.activeDrawConfig.highlighterColor
-                    : state.activeDrawConfig.strokeColor,
-              }}
-            >
-              <input
-                type="color"
-                className="color-input-hidden"
+            <div className="inspector-divider" />
+
+            {/* Text Color Swatches & Picker */}
+            <div className="inspector-group color-section">
+              <span className="inspector-label">Color:</span>
+              <div className="color-palette-bar">
+                {TEXT_COLORS.map((c) => (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    className={`color-dot-btn ${
+                      currentTextColor.toLowerCase() === c.hex.toLowerCase() ? 'active' : ''
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    onClick={() => updateSelectedText({ color: c.hex })}
+                    title={`Text Color: ${c.label}`}
+                  />
+                ))}
+                <div
+                  className="color-swatch-btn custom-picker-btn"
+                  style={{ backgroundColor: currentTextColor }}
+                  title="Custom Text Color Picker"
+                >
+                  <input
+                    type="color"
+                    className="color-input-hidden"
+                    value={
+                      currentTextColor.startsWith('#') && currentTextColor.length === 7
+                        ? currentTextColor
+                        : '#0f172a'
+                    }
+                    onChange={(e) => updateSelectedText({ color: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="inspector-divider" />
+
+            {/* Background / Highlight Swatches */}
+            <div className="inspector-group color-section">
+              <span className="inspector-label" title="Set background color or highlight behind text">
+                Bg:
+              </span>
+              <div className="color-palette-bar bg-palette-bar">
+                {BG_HIGHLIGHT_COLORS.map((bg) => (
+                  <button
+                    key={bg.hex}
+                    type="button"
+                    className={`color-dot-btn bg-dot-btn ${
+                      currentBgColor.toLowerCase() === bg.hex.toLowerCase() ? 'active' : ''
+                    }`}
+                    style={{
+                      backgroundColor: bg.hex === 'transparent' ? 'transparent' : bg.hex,
+                      backgroundImage:
+                        bg.hex === 'transparent'
+                          ? 'linear-gradient(45deg, #ef4444 10%, transparent 10%, transparent 90%, #ef4444 90%)'
+                          : 'none',
+                    }}
+                    onClick={() => updateSelectedText({ backgroundColor: bg.hex })}
+                    title={`Background: ${bg.label}`}
+                  />
+                ))}
+                <div
+                  className="color-swatch-btn custom-picker-btn"
+                  style={{
+                    backgroundColor:
+                      currentBgColor === 'transparent' ? '#ffffff' : currentBgColor,
+                  }}
+                  title="Custom Background Color Picker"
+                >
+                  <input
+                    type="color"
+                    className="color-input-hidden"
+                    value={
+                      currentBgColor.startsWith('#') && currentBgColor.length === 7
+                        ? currentBgColor
+                        : '#ffffff'
+                    }
+                    onChange={(e) => updateSelectedText({ backgroundColor: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* AI Text Assist Trigger */}
+            {onOpenAiTextAssist && selectedEl?.type === 'text' && (
+              <>
+                <div className="inspector-divider" />
+                <div className="inspector-group">
+                  <button
+                    className="btn-primary inspector-ai-btn"
+                    onClick={onOpenAiTextAssist}
+                    title="Use Claude AI to rewrite, fix grammar, concise, or change tone"
+                  >
+                    <Sparkles size={13} />
+                    <span>AI Assist</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {/* ---------------- Shape Controls ---------------- */}
+        {showShapeControls && (
+          <>
+            {/* Shape Type Selector */}
+            <div className="inspector-group">
+              <span className="inspector-label">Shape:</span>
+              <select
+                className="inspector-select"
                 value={
-                  activeTool === 'highlighter'
-                    ? state.activeDrawConfig.highlighterColor
-                    : state.activeDrawConfig.strokeColor
+                  selectedEl?.type === 'shape'
+                    ? (selectedEl as ShapeElement).shapeType
+                    : state.activeShape
                 }
                 onChange={(e) => {
-                  const val = e.target.value;
-                  onUpdateState((prev) => ({
-                    ...prev,
-                    activeDrawConfig: {
-                      ...prev.activeDrawConfig,
-                      ...(activeTool === 'highlighter'
-                        ? { highlighterColor: val }
-                        : { strokeColor: val }),
-                    },
-                  }));
+                  const st = e.target.value as ShapeType;
+                  if (selectedEl?.type === 'shape') {
+                    updateSelectedShape({ shapeType: st });
+                  } else {
+                    onUpdateState((prev) => ({ ...prev, activeShape: st }));
+                  }
                 }}
-              />
+              >
+                <option value="rect">Rectangle</option>
+                <option value="roundedRect">Rounded Box</option>
+                <option value="circle">Circle / Ellipse</option>
+                <option value="line">Straight Line</option>
+                <option value="arrow">Arrow</option>
+                <option value="checkmark">Checkmark</option>
+              </select>
             </div>
-          </div>
 
-          <div className="inspector-group">
-            <span className="inspector-label">Thickness:</span>
-            <input
-              type="number"
-              className="inspector-input-number"
-              min={1}
-              max={50}
-              value={
-                activeTool === 'highlighter'
-                  ? state.activeDrawConfig.highlighterWidth
-                  : state.activeDrawConfig.strokeWidth
-              }
-              onChange={(e) => {
-                const w = parseInt(e.target.value, 10);
-                if (!isNaN(w) && w > 0) {
-                  onUpdateState((prev) => ({
-                    ...prev,
-                    activeDrawConfig: {
-                      ...prev.activeDrawConfig,
-                      ...(activeTool === 'highlighter'
-                        ? { highlighterWidth: w }
-                        : { strokeWidth: w }),
-                    },
-                  }));
+            <div className="inspector-divider" />
+
+            {/* Stroke Width */}
+            <div className="inspector-group">
+              <span className="inspector-label">Border:</span>
+              <div className="inspector-number-stepper">
+                <button
+                  className="inspector-btn-step"
+                  onClick={() => {
+                    const curW =
+                      selectedEl?.type === 'shape'
+                        ? (selectedEl as ShapeElement).strokeWidth
+                        : 2;
+                    updateSelectedShape({ strokeWidth: Math.max(1, curW - 1) });
+                  }}
+                  title="Decrease Border Width"
+                >
+                  <Minus size={12} />
+                </button>
+                <input
+                  type="number"
+                  className="inspector-input-number"
+                  min={0}
+                  max={24}
+                  value={
+                    selectedEl?.type === 'shape'
+                      ? (selectedEl as ShapeElement).strokeWidth
+                      : 2
+                  }
+                  onChange={(e) => {
+                    const w = parseInt(e.target.value, 10);
+                    if (!isNaN(w)) updateSelectedShape({ strokeWidth: w });
+                  }}
+                />
+                <button
+                  className="inspector-btn-step"
+                  onClick={() => {
+                    const curW =
+                      selectedEl?.type === 'shape'
+                        ? (selectedEl as ShapeElement).strokeWidth
+                        : 2;
+                    updateSelectedShape({ strokeWidth: Math.min(24, curW + 1) });
+                  }}
+                  title="Increase Border Width"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+            </div>
+
+            <div className="inspector-divider" />
+
+            {/* Stroke Color */}
+            <div className="inspector-group">
+              <span className="inspector-label">Stroke:</span>
+              <div className="color-palette-bar">
+                {SHAPE_STROKE_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`color-dot-btn ${
+                      selectedEl?.type === 'shape' &&
+                      (selectedEl as ShapeElement).strokeColor.toLowerCase() === c.toLowerCase()
+                        ? 'active'
+                        : ''
+                    }`}
+                    style={{ backgroundColor: c }}
+                    onClick={() => updateSelectedShape({ strokeColor: c })}
+                  />
+                ))}
+                <div
+                  className="color-swatch-btn custom-picker-btn"
+                  style={{
+                    backgroundColor:
+                      selectedEl?.type === 'shape'
+                        ? (selectedEl as ShapeElement).strokeColor
+                        : '#2563eb',
+                  }}
+                  title="Custom Stroke Color"
+                >
+                  <input
+                    type="color"
+                    className="color-input-hidden"
+                    value={
+                      selectedEl?.type === 'shape'
+                        ? (selectedEl as ShapeElement).strokeColor
+                        : '#2563eb'
+                    }
+                    onChange={(e) => updateSelectedShape({ strokeColor: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="inspector-divider" />
+
+            {/* Fill Color */}
+            <div className="inspector-group">
+              <span className="inspector-label">Fill:</span>
+              <select
+                className="inspector-select"
+                value={
+                  selectedEl?.type === 'shape' &&
+                  (selectedEl as ShapeElement).fillColor !== 'transparent'
+                    ? 'custom'
+                    : 'transparent'
                 }
-              }}
-            />
-            <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>px</span>
-          </div>
-        </>
-      )}
+                onChange={(e) => {
+                  if (e.target.value === 'transparent') {
+                    updateSelectedShape({ fillColor: 'transparent' });
+                  } else {
+                    updateSelectedShape({ fillColor: 'rgba(99, 102, 241, 0.2)' });
+                  }
+                }}
+              >
+                <option value="transparent">Transparent</option>
+                <option value="custom">Filled Color</option>
+              </select>
 
-      {/* ---------------- Generic Selected Element Actions ---------------- */}
-      {selectedEl && (
-        <div className="inspector-group" style={{ marginLeft: 'auto' }}>
-          <button
-            className="inspector-btn-toggle"
-            onClick={onDuplicateSelected}
-            title="Duplicate Element"
-          >
-            <Copy size={14} />
-          </button>
-          <button
-            className="inspector-btn-toggle"
-            style={{ color: 'var(--accent-danger)' }}
-            onClick={onDeleteSelected}
-            title="Delete Element (Del)"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      )}
-    </aside>
+              {selectedEl?.type === 'shape' &&
+                (selectedEl as ShapeElement).fillColor !== 'transparent' && (
+                  <div
+                    className="color-swatch-btn custom-picker-btn"
+                    style={{ backgroundColor: (selectedEl as ShapeElement).fillColor }}
+                  >
+                    <input
+                      type="color"
+                      className="color-input-hidden"
+                      value={((selectedEl as ShapeElement).fillColor || '#ffffff').substring(0, 7)}
+                      onChange={(e) => updateSelectedShape({ fillColor: e.target.value })}
+                    />
+                  </div>
+                )}
+            </div>
+          </>
+        )}
+
+        {/* ---------------- Freehand / Highlighter Controls ---------------- */}
+        {showDrawControls && (
+          <>
+            <div className="inspector-group">
+              <span className="inspector-label">
+                {activeTool === 'highlighter' ? 'Highlighter:' : 'Pen:'}
+              </span>
+              <div className="color-palette-bar">
+                {(activeTool === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`color-dot-btn ${
+                      (activeTool === 'highlighter'
+                        ? state.activeDrawConfig.highlighterColor
+                        : state.activeDrawConfig.strokeColor
+                      ).toLowerCase() === c.toLowerCase()
+                        ? 'active'
+                        : ''
+                    }`}
+                    style={{ backgroundColor: c }}
+                    onClick={() => {
+                      onUpdateState((prev) => ({
+                        ...prev,
+                        activeDrawConfig: {
+                          ...prev.activeDrawConfig,
+                          ...(activeTool === 'highlighter'
+                            ? { highlighterColor: c }
+                            : { strokeColor: c }),
+                        },
+                      }));
+                    }}
+                  />
+                ))}
+                <div
+                  className="color-swatch-btn custom-picker-btn"
+                  style={{
+                    backgroundColor:
+                      activeTool === 'highlighter'
+                        ? state.activeDrawConfig.highlighterColor
+                        : state.activeDrawConfig.strokeColor,
+                  }}
+                  title="Custom Drawing Color"
+                >
+                  <input
+                    type="color"
+                    className="color-input-hidden"
+                    value={
+                      activeTool === 'highlighter'
+                        ? state.activeDrawConfig.highlighterColor
+                        : state.activeDrawConfig.strokeColor
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      onUpdateState((prev) => ({
+                        ...prev,
+                        activeDrawConfig: {
+                          ...prev.activeDrawConfig,
+                          ...(activeTool === 'highlighter'
+                            ? { highlighterColor: val }
+                            : { strokeColor: val }),
+                        },
+                      }));
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="inspector-divider" />
+
+            <div className="inspector-group">
+              <span className="inspector-label">Thickness:</span>
+              <div className="inspector-number-stepper">
+                <input
+                  type="number"
+                  className="inspector-input-number"
+                  min={1}
+                  max={50}
+                  value={
+                    activeTool === 'highlighter'
+                      ? state.activeDrawConfig.highlighterWidth
+                      : state.activeDrawConfig.strokeWidth
+                  }
+                  onChange={(e) => {
+                    const w = parseInt(e.target.value, 10);
+                    if (!isNaN(w) && w > 0) {
+                      onUpdateState((prev) => ({
+                        ...prev,
+                        activeDrawConfig: {
+                          ...prev.activeDrawConfig,
+                          ...(activeTool === 'highlighter'
+                            ? { highlighterWidth: w }
+                            : { strokeWidth: w }),
+                        },
+                      }));
+                    }
+                  }}
+                />
+                <span style={{ color: 'var(--text-muted)', fontSize: '11px', paddingRight: '4px' }}>
+                  px
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ---------------- Generic Selected Element Actions ---------------- */}
+        {selectedEl && (
+          <>
+            <div className="inspector-divider" />
+            <div className="inspector-group" style={{ marginLeft: 'auto' }}>
+              <button
+                className="inspector-btn-toggle"
+                onClick={onDuplicateSelected}
+                title="Duplicate Element"
+              >
+                <Copy size={14} />
+              </button>
+              <button
+                className="inspector-btn-toggle"
+                style={{ color: 'var(--accent-danger)' }}
+                onClick={onDeleteSelected}
+                title="Delete Element (Del)"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </>
+        )}
+      </aside>
+    </div>
   );
 };

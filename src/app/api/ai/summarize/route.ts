@@ -51,9 +51,8 @@ Use clean Markdown formatting. Keep it objective, authoritative, and concise.`;
     });
   } catch (err: any) {
     console.error('API /api/ai/summarize error:', err);
-    return NextResponse.json(
-      { error: err.message || 'Failed to summarize document with Claude AI.' },
-      { status: err.message?.startsWith('MISSING_API_KEY') ? 401 : 500 }
-    );
+    const message = err.message || 'Failed to summarize document with AI Assistant.';
+    const status = message.includes('not configured') || message.includes('invalid') ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

@@ -148,6 +148,16 @@ export const PageCard: React.FC<PageCardProps> = ({
 
     onAddElement(newTextElement, `Edited text: "${textItem.text.substring(0, 15)}..."`);
     onSelectElement(newTextElement.id);
+
+    setTimeout(() => {
+      const elDom = document.getElementById(`text-el-${newTextElement.id}`) as HTMLTextAreaElement | null;
+      if (elDom) {
+        elDom.focus();
+        if (typeof elDom.setSelectionRange === 'function') {
+          elDom.setSelectionRange(elDom.value.length, elDom.value.length);
+        }
+      }
+    }, 60);
   };
 
   // Mouse Down Event on Page Card
@@ -194,6 +204,16 @@ export const PageCard: React.FC<PageCardProps> = ({
       onAddElement(newTextEl, 'Added text box');
       onSelectElement(newTextEl.id);
       onUpdateState((prev) => ({ ...prev, selectedTool: 'select' }));
+
+      setTimeout(() => {
+        const elDom = document.getElementById(`text-el-${newTextEl.id}`) as HTMLTextAreaElement | null;
+        if (elDom) {
+          elDom.focus();
+          if (typeof elDom.select === 'function') {
+            elDom.select();
+          }
+        }
+      }, 60);
       return;
     }
 
@@ -398,13 +418,15 @@ export const PageCard: React.FC<PageCardProps> = ({
         }}
       />
 
-      {/* Text Detection Overlay Layer (Active in 'editText' mode) */}
-      {state.selectedTool === 'editText' && (
+      {/* Text Detection Overlay Layer (Active in 'editText' and 'select' mode) */}
+      {(state.selectedTool === 'editText' || state.selectedTool === 'select') && (
         <div className="text-detection-layer">
           {page.textItems.map((item) => (
             <div
               key={item.id}
-              className={`text-item-box ${item.isEdited ? 'edited' : ''}`}
+              className={`text-item-box ${state.selectedTool === 'select' ? 'subtle' : ''} ${
+                item.isEdited ? 'edited' : ''
+              }`}
               style={{
                 left: `${item.visualX * scale}px`,
                 top: `${item.visualY * scale}px`,
@@ -412,10 +434,11 @@ export const PageCard: React.FC<PageCardProps> = ({
                 height: `${item.height * scale}px`,
               }}
               onClick={(e) => handleOriginalTextClick(item, e)}
+              title="Click to edit this text"
             >
               {/* Font Info Tooltip */}
               <div className="text-font-tooltip">
-                🔍 {item.fontFamily} {Math.round(item.fontSize)}pt {item.fontWeight === 'bold' ? '(Bold)' : ''}
+                ✏️ Click to edit: {item.fontFamily} {Math.round(item.fontSize)}pt
               </div>
             </div>
           ))}
@@ -443,31 +466,88 @@ export const PageCard: React.FC<PageCardProps> = ({
             >
               {/* ================= Element: Text ================= */}
               {el.type === 'text' && (
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    fontFamily: (el as TextElement).fontFamily,
-                    fontSize: `${(el as TextElement).fontSize * scale}px`,
-                    fontWeight: (el as TextElement).fontWeight,
-                    fontStyle: (el as TextElement).fontStyle,
-                    textDecoration: (el as TextElement).underline ? 'underline' : 'none',
-                    color: (el as TextElement).color,
-                    textAlign: (el as TextElement).align,
-                    lineHeight: (el as TextElement).lineHeight || 1.25,
-                    backgroundColor: (el as TextElement).backgroundColor || 'transparent',
-                    padding: '2px 4px',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                  contentEditable={isSelected}
-                  suppressContentEditableWarning
-                  onBlur={(e) => {
-                    onUpdateElement(el.id, { text: e.currentTarget.innerText });
-                  }}
-                >
-                  {(el as TextElement).text}
-                </div>
+                isSelected ? (
+                  <textarea
+                    id={`text-el-${el.id}`}
+                    className="element-text-textarea"
+                    value={(el as TextElement).text}
+                    placeholder="Type text..."
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      fontFamily: (el as TextElement).fontFamily,
+                      fontSize: `${(el as TextElement).fontSize * scale}px`,
+                      fontWeight: (el as TextElement).fontWeight,
+                      fontStyle: (el as TextElement).fontStyle,
+                      textDecoration: (el as TextElement).underline ? 'underline' : 'none',
+                      color: (el as TextElement).color || '#0f172a',
+                      textAlign: (el as TextElement).align || 'left',
+                      lineHeight: (el as TextElement).lineHeight || 1.25,
+                      backgroundColor: (el as TextElement).backgroundColor || 'transparent',
+                      padding: '2px 4px',
+                      margin: 0,
+                      border: 'none',
+                      outline: 'none',
+                      resize: 'none',
+                      overflow: 'hidden',
+                      boxSizing: 'border-box',
+                      cursor: 'text',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      display: 'block',
+                    }}
+                    onChange={(e) => {
+                      onUpdateElement(el.id, { text: e.target.value });
+                    }}
+                    onKeyDown={(e) => {
+                      // Stop propagation so global shortcuts (v, e, t, p, Backspace delete, etc.) NEVER interfere!
+                      e.stopPropagation();
+                      if (e.key === 'Escape') {
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    onKeyUp={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={(e) => {
+                      onUpdateElement(el.id, { text: e.target.value });
+                    }}
+                  />
+                ) : (
+                  <div
+                    id={`text-el-${el.id}`}
+                    className="element-text-display"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      fontFamily: (el as TextElement).fontFamily,
+                      fontSize: `${(el as TextElement).fontSize * scale}px`,
+                      fontWeight: (el as TextElement).fontWeight,
+                      fontStyle: (el as TextElement).fontStyle,
+                      textDecoration: (el as TextElement).underline ? 'underline' : 'none',
+                      color: (el as TextElement).color || '#0f172a',
+                      textAlign: (el as TextElement).align || 'left',
+                      lineHeight: (el as TextElement).lineHeight || 1.25,
+                      backgroundColor: (el as TextElement).backgroundColor || 'transparent',
+                      padding: '2px 4px',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      cursor: 'move',
+                      userSelect: 'none',
+                      boxSizing: 'border-box',
+                      overflow: 'hidden',
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectElement(el.id);
+                    }}
+                  >
+                    {(el as TextElement).text || (
+                      <span style={{ opacity: 0.35, fontStyle: 'italic' }}>(Empty text)</span>
+                    )}
+                  </div>
+                )
               )}
 
               {/* ================= Element: Shape ================= */}
