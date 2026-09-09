@@ -14,13 +14,29 @@ export interface WatermarkOptions {
  * Merge multiple PDF files into a single unified PDF
  */
 export async function mergePdfFiles(files: File[]): Promise<Uint8Array> {
+  if (!files || files.length === 0) {
+    throw new Error('Please select at least one PDF file to merge.');
+  }
+
   const mergedPdf = await PDFDocument.create();
 
-  for (const file of files) {
-    const fileBytes = await file.arrayBuffer();
-    const pdf = await PDFDocument.load(fileBytes);
-    const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-    copiedPages.forEach((page) => mergedPdf.addPage(page));
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.size === 0) {
+      throw new Error(`File "${file.name}" is empty (0 bytes).`);
+    }
+
+    try {
+      const fileBytes = await file.arrayBuffer();
+      const pdf = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+      const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+      copiedPages.forEach((page) => mergedPdf.addPage(page));
+    } catch (err: any) {
+      if (err?.message?.includes('password') || err?.name === 'PasswordException') {
+        throw new Error(`File "${file.name}" is password-protected. Please unlock it before merging.`);
+      }
+      throw new Error(`Failed to read "${file.name}": ${err.message || 'Corrupted or invalid PDF'}`);
+    }
   }
 
   return await mergedPdf.save();
@@ -33,9 +49,26 @@ export async function splitPdf(
   file: File,
   rangeStr: string
 ): Promise<{ fileName: string; bytes: Uint8Array }[]> {
+  if (!file || file.size === 0) {
+    throw new Error('The selected PDF file is empty or invalid.');
+  }
+
   const fileBytes = await file.arrayBuffer();
-  const srcPdf = await PDFDocument.load(fileBytes);
+  let srcPdf: PDFDocument;
+  try {
+    srcPdf = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+  } catch (err: any) {
+    if (err?.message?.includes('password') || err?.name === 'PasswordException') {
+      throw new Error('This PDF is password-protected. Please remove password protection before splitting.');
+    }
+    throw new Error(`Could not load PDF: ${err.message || 'Invalid or corrupted PDF file'}`);
+  }
+
   const totalPages = srcPdf.getPageCount();
+  if (totalPages === 0) {
+    throw new Error('The selected PDF document contains no pages.');
+  }
+
   const results: { fileName: string; bytes: Uint8Array }[] = [];
 
   // Parse ranges e.g. "1-3, 5, 8-10"
@@ -81,6 +114,10 @@ export async function splitPdf(
     }
   }
 
+  if (results.length === 0) {
+    throw new Error('No valid pages matched the specified range. Please check the page numbers.');
+  }
+
   return results;
 }
 
@@ -92,8 +129,18 @@ export async function pdfToImages(
   format: 'png' | 'jpeg' = 'png',
   scale: number = 2.0
 ): Promise<{ pageNumber: number; dataUrl: string }[]> {
+  if (!file || file.size === 0) {
+    throw new Error('The selected PDF file is empty or invalid.');
+  }
+
   const fileBytes = await file.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(fileBytes) });
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(fileBytes),
+    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
+    cMapPacked: true,
+    standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/standard_fonts/',
+  });
+
   const pdfDoc = await loadingTask.promise;
   const numPages = pdfDoc.numPages;
   const images: { pageNumber: number; dataUrl: string }[] = [];
@@ -125,25 +172,83 @@ export async function pdfToImages(
 }
 
 /**
- * Converts multiple image files (JPG/PNG) into a single multi-page PDF document
+ * Helper to convert any browser image file (including WebP, AVIF, GIF, BMP) to PNG bytes
+ */
+async function convertImageFileToPngBytes(file: File): Promise<{ bytes: ArrayBuffer; width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context for image conversion'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          reject(new Error('Failed to convert image to blob'));
+          return;
+        }
+        const buffer = await blob.arrayBuffer();
+        resolve({ bytes: buffer, width: canvas.width, height: canvas.height });
+      }, 'image/png');
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error(`Could not load image: ${file.name}`));
+    };
+
+    img.src = url;
+  });
+}
+
+/**
+ * Converts multiple image files (JPG/PNG/WebP/etc) into a single multi-page PDF document
  */
 export async function imagesToPdf(
   files: File[],
   pageSize: 'fit' | 'a4' = 'fit'
 ): Promise<Uint8Array> {
+  if (!files || files.length === 0) {
+    throw new Error('Please select at least one image file.');
+  }
+
   const pdfDoc = await PDFDocument.create();
 
   for (const file of files) {
-    const imageBytes = await file.arrayBuffer();
+    if (file.size === 0) continue;
+
     let embeddedImage;
+    let imgWidth = 595;
+    let imgHeight = 842;
 
-    if (file.type === 'image/jpeg' || file.name.match(/\.(jpe?g)$/i)) {
+    const isJpeg = file.type === 'image/jpeg' || file.name.match(/\.(jpe?g)$/i);
+    const isPng = file.type === 'image/png' || file.name.match(/\.png$/i);
+
+    if (isJpeg) {
+      const imageBytes = await file.arrayBuffer();
       embeddedImage = await pdfDoc.embedJpg(imageBytes);
-    } else {
+      imgWidth = embeddedImage.width;
+      imgHeight = embeddedImage.height;
+    } else if (isPng) {
+      const imageBytes = await file.arrayBuffer();
       embeddedImage = await pdfDoc.embedPng(imageBytes);
+      imgWidth = embeddedImage.width;
+      imgHeight = embeddedImage.height;
+    } else {
+      // Convert WebP / GIF / other image formats to clean PNG in browser
+      const converted = await convertImageFileToPngBytes(file);
+      embeddedImage = await pdfDoc.embedPng(converted.bytes);
+      imgWidth = converted.width;
+      imgHeight = converted.height;
     }
-
-    const { width: imgWidth, height: imgHeight } = embeddedImage;
 
     if (pageSize === 'fit') {
       const page = pdfDoc.addPage([imgWidth, imgHeight]);
@@ -182,21 +287,36 @@ export async function watermarkPdf(
   file: File,
   options: WatermarkOptions
 ): Promise<Uint8Array> {
+  if (!file || file.size === 0) {
+    throw new Error('The selected PDF file is empty or invalid.');
+  }
+
   const fileBytes = await file.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(fileBytes);
+  const pdfDoc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const pages = pdfDoc.getPages();
 
-  // Convert hex color to rgb
-  const hex = options.color.replace('#', '');
-  const r = parseInt(hex.substring(0, 2), 16) / 255 || 0.5;
-  const g = parseInt(hex.substring(2, 4), 16) / 255 || 0.5;
-  const b = parseInt(hex.substring(4, 6), 16) / 255 || 0.5;
+  // Robust hex color conversion
+  let r = 0.5, g = 0.5, b = 0.5;
+  const hex = (options.color || '#ef4444').replace('#', '').trim();
+  if (hex.length === 3) {
+    const expanded = hex.split('').map((c) => c + c).join('');
+    r = parseInt(expanded.substring(0, 2), 16) / 255 || 0.5;
+    g = parseInt(expanded.substring(2, 4), 16) / 255 || 0.5;
+    b = parseInt(expanded.substring(4, 6), 16) / 255 || 0.5;
+  } else if (hex.length >= 6) {
+    r = parseInt(hex.substring(0, 2), 16) / 255 || 0.5;
+    g = parseInt(hex.substring(2, 4), 16) / 255 || 0.5;
+    b = parseInt(hex.substring(4, 6), 16) / 255 || 0.5;
+  }
+
+  const watermarkText = options.text || 'CONFIDENTIAL';
+  const fontSize = options.fontSize || 48;
 
   for (const page of pages) {
     const { width, height } = page.getSize();
-    const textWidth = font.widthOfTextAtSize(options.text, options.fontSize);
-    const textHeight = font.heightAtSize(options.fontSize);
+    const textWidth = font.widthOfTextAtSize(watermarkText, fontSize);
+    const textHeight = font.heightAtSize(fontSize);
 
     let x = (width - textWidth) / 2;
     let y = (height - textHeight) / 2;
@@ -209,14 +329,14 @@ export async function watermarkPdf(
       y = height - textHeight - 30;
     }
 
-    page.drawText(options.text, {
+    page.drawText(watermarkText, {
       x: x,
       y: y,
-      size: options.fontSize,
+      size: fontSize,
       font: font,
       color: rgb(r, g, b),
-      opacity: options.opacity,
-      rotate: degrees(options.rotation),
+      opacity: options.opacity ?? 0.3,
+      rotate: degrees(options.rotation || 0),
     });
   }
 
@@ -229,9 +349,21 @@ export async function watermarkPdf(
 export async function compressPdf(
   file: File
 ): Promise<{ bytes: Uint8Array; originalSize: number; newSize: number }> {
+  if (!file || file.size === 0) {
+    throw new Error('The selected PDF file is empty or invalid.');
+  }
+
   const originalSize = file.size;
   const fileBytes = await file.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+  let pdfDoc: PDFDocument;
+  try {
+    pdfDoc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+  } catch (err: any) {
+    if (err?.message?.includes('password') || err?.name === 'PasswordException') {
+      throw new Error('This PDF is password-protected. Please unlock it before compressing.');
+    }
+    throw new Error(`Failed to load PDF: ${err.message || 'Invalid or corrupted PDF file'}`);
+  }
 
   // Save with compressed object streams
   const bytes = await pdfDoc.save({ useObjectStreams: true });

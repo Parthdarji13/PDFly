@@ -149,31 +149,41 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        // Remove white background automatically
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        try {
+          // Remove white background automatically
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, img.width);
+          canvas.height = Math.max(1, img.height);
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
 
-        ctx.drawImage(img, 0, 0);
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
 
-        // Key out bright background
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          if (r > 220 && g > 220 && b > 220) {
-            data[i + 3] = 0; // Alpha transparent
+          // Key out bright background
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            if (r > 220 && g > 220 && b > 220) {
+              data[i + 3] = 0; // Alpha transparent
+            }
           }
+          ctx.putImageData(imgData, 0, 0);
+          onAddSignature(canvas.toDataURL('image/png'), 'upload');
+          onClose();
+        } catch (err) {
+          console.error('Failed to process signature image:', err);
         }
-        ctx.putImageData(imgData, 0, 0);
-        onAddSignature(canvas.toDataURL('image/png'), 'upload');
-        onClose();
+      };
+      img.onerror = () => {
+        console.error('Failed to load signature image');
       };
       img.src = reader.result as string;
+    };
+    reader.onerror = () => {
+      console.error('FileReader error while reading signature file');
     };
     reader.readAsDataURL(file);
   };

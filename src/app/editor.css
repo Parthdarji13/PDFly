@@ -319,7 +319,8 @@
    3. Main Workspace Layout & Sidebar
    ========================================================================= */
 
-.workspace-layout {
+.workspace-layout,
+.editor-workspace {
   display: flex;
   flex: 1;
   width: 100%;
@@ -1207,7 +1208,8 @@
    9. Unified Modals & Dialogs
    ========================================================================= */
 
-.modal-overlay {
+.modal-overlay,
+.modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.72);

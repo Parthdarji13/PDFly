@@ -17,14 +17,32 @@ export interface LoadedPDF {
  * Loads a PDF from an ArrayBuffer or Uint8Array
  */
 export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<LoadedPDF> {
+  const uint8Data = data instanceof Uint8Array ? data : new Uint8Array(data);
+
+  if (uint8Data.byteLength === 0) {
+    throw new Error('PDF file is empty (0 bytes).');
+  }
+
   const loadingTask = pdfjsLib.getDocument({
-    data: data instanceof Uint8Array ? data : new Uint8Array(data),
+    data: uint8Data,
     cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
     cMapPacked: true,
     standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/standard_fonts/',
   });
 
-  const pdfDoc = await loadingTask.promise;
+  let pdfDoc: pdfjsLib.PDFDocumentProxy;
+  try {
+    pdfDoc = await loadingTask.promise;
+  } catch (err: any) {
+    if (err?.name === 'PasswordException') {
+      throw new Error('This PDF is password protected. Please unlock it before editing.');
+    }
+    if (err?.name === 'InvalidPDFException') {
+      throw new Error('The selected file is not a valid PDF or is corrupted.');
+    }
+    throw err;
+  }
+
   const pageCount = pdfDoc.numPages;
   const pages: PageInfo[] = [];
 
@@ -50,7 +68,6 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
       const fontSize = calculateFontSizeFromTransform(transform, itemHeight);
 
       // Convert PDF coordinate system (origin bottom-left) to visual top-left
-      // visualY is distance from page top in points
       const visualY = viewport.height - ty - fontSize;
       const visualX = tx;
 
@@ -186,25 +203,45 @@ export async function generatePageThumbnail(
   pageNumber: number,
   thumbnailWidth: number = 180
 ): Promise<string> {
-  const page = await pdfDoc.getPage(pageNumber);
-  const unscaledViewport = page.getViewport({ scale: 1.0 });
-  const scale = thumbnailWidth / unscaledViewport.width;
-  const viewport = page.getViewport({ scale });
+  if (pageNumber < 1 || pageNumber > pdfDoc.numPages) {
+    // Return a clean blank thumbnail
+    const canvas = document.createElement('canvas');
+    canvas.width = thumbnailWidth;
+    canvas.height = Math.round(thumbnailWidth * 1.414);
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.strokeRect(0, 0, canvas.width, canvas.height);
+    }
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
 
-  const canvas = document.createElement('canvas');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
+  try {
+    const page = await pdfDoc.getPage(pageNumber);
+    const unscaledViewport = page.getViewport({ scale: 1.0 });
+    const scale = thumbnailWidth / Math.max(1, unscaledViewport.width);
+    const viewport = page.getViewport({ scale });
 
-  const ctx = canvas.getContext('2d', { alpha: false });
-  if (!ctx) return '';
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
 
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return '';
 
-  await page.render({
-    canvasContext: ctx,
-    viewport: viewport,
-  }).promise;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  return canvas.toDataURL('image/jpeg', 0.85);
+    await page.render({
+      canvasContext: ctx,
+      viewport: viewport,
+    }).promise;
+
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } catch (err) {
+    console.warn(`Failed to generate thumbnail for page ${pageNumber}:`, err);
+    return '';
+  }
 }

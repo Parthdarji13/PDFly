@@ -117,6 +117,11 @@ export default function PDFEditorPage() {
   const loadPdfBytes = useCallback(
     async (bytes: Uint8Array, fileName: string) => {
       try {
+        if (!bytes || bytes.byteLength === 0) {
+          showToast('Selected file is empty (0 bytes). Please choose a valid PDF.', 'error');
+          return;
+        }
+
         const { pdfDoc, pageCount, pages } = await loadPDFDocument(bytes);
         setPdfDocProxy(pdfDoc);
 
@@ -156,7 +161,8 @@ export default function PDFEditorPage() {
         }));
       } catch (err: any) {
         console.error('Failed to load PDF document:', err);
-        showToast('Error loading PDF. Please try another file.', 'error');
+        const errorMsg = err?.message || 'Error loading PDF. Please try another file.';
+        showToast(errorMsg, 'error');
       }
     },
     [showToast]
@@ -165,13 +171,28 @@ export default function PDFEditorPage() {
   // Open file from local computer
   const handleOpenFile = useCallback(
     async (file: File) => {
+      if (!file || file.size === 0) {
+        showToast('Selected file is empty. Please choose a valid PDF document.', 'error');
+        return;
+      }
+
+      if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+        if (file.type.startsWith('image/')) {
+          setIsImageToPdfModalOpen(true);
+          showToast('Image detected. Opened Image to PDF converter.', 'info');
+          return;
+        }
+        showToast('Please select a valid .pdf file.', 'warning');
+        return;
+      }
+
       try {
         const buffer = await file.arrayBuffer();
         await loadPdfBytes(new Uint8Array(buffer), file.name);
         setCurrentView('editor');
       } catch (err: any) {
         console.error('Failed to open PDF file:', err);
-        showToast('Failed to parse PDF file. Ensure it is a valid PDF.', 'error');
+        showToast(err?.message || 'Failed to parse PDF file. Ensure it is a valid PDF.', 'error');
       }
     },
     [loadPdfBytes, showToast]
@@ -502,7 +523,7 @@ export default function PDFEditorPage() {
       const dataUrl = reader.result as string;
       const img = new Image();
       img.onload = () => {
-        const aspect = img.width / img.height;
+        const aspect = Math.max(0.1, img.width / Math.max(1, img.height));
         const width = 180;
         const height = width / aspect;
 
@@ -522,8 +543,15 @@ export default function PDFEditorPage() {
 
         handleAddElement(newImgEl, 'Inserted image');
         setState((prev) => ({ ...prev, selectedTool: 'select' }));
+        showToast('Image inserted on active page', 'success');
+      };
+      img.onerror = () => {
+        showToast('Failed to load image file. Please try another image.', 'error');
       };
       img.src = dataUrl;
+    };
+    reader.onerror = () => {
+      showToast('Error reading image file.', 'error');
     };
     reader.readAsDataURL(file);
     e.target.value = '';

@@ -44,10 +44,11 @@ export const SearchReplaceModal: React.FC<SearchReplaceModalProps> = ({
   const handleReplaceAll = () => {
     if (matches.length === 0 || replaceTerm === undefined) return;
 
+    const escapedSearch = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedSearch, matchCase ? 'g' : 'gi');
     const newTextElements: TextElement[] = [];
 
     matches.forEach(({ pageIndex, item }, idx) => {
-      const regex = new RegExp(searchTerm, matchCase ? 'g' : 'gi');
       const updatedText = item.text.replace(regex, replaceTerm);
 
       const newEl: TextElement = {
