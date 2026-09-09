@@ -20,6 +20,9 @@ import {
   PanelLeft,
   Home,
   Grid,
+  Bot,
+  MessageSquare,
+  Brain,
 } from 'lucide-react';
 import { AppState } from '../lib/state/store';
 
@@ -35,6 +38,9 @@ interface TopNavProps {
   onExportPdf: () => void;
   onNavigateHome?: () => void;
   onOpenToolModal?: (tool: string) => void;
+  onOpenAiChat?: () => void;
+  onOpenAiSummarize?: () => void;
+  onOpenAiInsights?: () => void;
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
@@ -49,6 +55,9 @@ export const TopNav: React.FC<TopNavProps> = ({
   onExportPdf,
   onNavigateHome,
   onOpenToolModal,
+  onOpenAiChat,
+  onOpenAiSummarize,
+  onOpenAiInsights,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -237,6 +246,49 @@ export const TopNav: React.FC<TopNavProps> = ({
 
       {/* Right Utility & Export Actions */}
       <div className="nav-actions">
+        {/* AI Chat Drawer Trigger */}
+        {onOpenAiChat && (
+          <button
+            className="btn-primary"
+            style={{
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              padding: '6px 12px',
+              gap: '5px',
+            }}
+            onClick={onOpenAiChat}
+            title="Chat with your PDF using Claude AI"
+          >
+            <MessageSquare size={14} />
+            <span className="nav-btn-text">AI Chat</span>
+          </button>
+        )}
+
+        {/* AI Summarize Trigger */}
+        {onOpenAiSummarize && (
+          <button
+            className="btn-secondary hide-on-mobile"
+            onClick={onOpenAiSummarize}
+            title="Generate AI Executive Summary"
+          >
+            <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
+            <span className="nav-btn-text">Summary</span>
+          </button>
+        )}
+
+        {/* AI Insights Trigger */}
+        {onOpenAiInsights && (
+          <button
+            className="btn-secondary hide-on-mobile"
+            onClick={onOpenAiInsights}
+            title="Extract Structured Data & Insights"
+          >
+            <Brain size={14} style={{ color: '#06b6d4' }} />
+            <span className="nav-btn-text">Insights</span>
+          </button>
+        )}
+
+        <div className="nav-divider hide-on-mobile" />
+
         {/* Search & Replace Trigger */}
         <button
           className="btn-secondary"

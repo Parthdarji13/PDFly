@@ -22,6 +22,12 @@ import { ImageToPdfModal } from '../components/modals/ImageToPdfModal';
 import { WatermarkModal } from '../components/modals/WatermarkModal';
 import { CompressPdfModal } from '../components/modals/CompressPdfModal';
 
+// AI Components & Modals
+import { AiChatDrawer } from '../components/ai/AiChatDrawer';
+import { AiSummarizeModal } from '../components/modals/AiSummarizeModal';
+import { AiTextAssistModal } from '../components/modals/AiTextAssistModal';
+import { AiInsightsModal } from '../components/modals/AiInsightsModal';
+
 import { AppState, initialAppState, HistoryEntry } from '../lib/state/store';
 import { EditorElement, PageInfo, ToolType, TextElement } from '../lib/types';
 import { loadPDFDocument, generatePageThumbnail } from '../lib/pdf/pdfEngine';
@@ -38,13 +44,19 @@ export default function PDFEditorPage() {
   const [pdfDocProxy, setPdfDocProxy] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  // New Tool Modals State
+  // Tool Modals State
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [isPdfToImageModalOpen, setIsPdfToImageModalOpen] = useState(false);
   const [isImageToPdfModalOpen, setIsImageToPdfModalOpen] = useState(false);
   const [isWatermarkModalOpen, setIsWatermarkModalOpen] = useState(false);
   const [isCompressModalOpen, setIsCompressModalOpen] = useState(false);
+
+  // AI Modals & Drawer State
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
+  const [isAiSummarizeOpen, setIsAiSummarizeOpen] = useState(false);
+  const [isAiTextAssistOpen, setIsAiTextAssistOpen] = useState(false);
+  const [isAiInsightsOpen, setIsAiInsightsOpen] = useState(false);
 
   // Show Toast Notification
   const showToast = useCallback(
@@ -286,6 +298,34 @@ export default function PDFEditorPage() {
           setCurrentView('editor');
           setState((prev) => ({ ...prev, isSearchModalOpen: true }));
           break;
+        case 'chat':
+          if (state.documentState.pages.length === 0) {
+            handleLoadSample('invoice');
+          }
+          setCurrentView('editor');
+          setIsAiChatOpen(true);
+          break;
+        case 'summarize':
+          if (state.documentState.pages.length === 0) {
+            handleLoadSample('contract');
+          }
+          setCurrentView('editor');
+          setIsAiSummarizeOpen(true);
+          break;
+        case 'insights':
+          if (state.documentState.pages.length === 0) {
+            handleLoadSample('invoice');
+          }
+          setCurrentView('editor');
+          setIsAiInsightsOpen(true);
+          break;
+        case 'aiAssist':
+          if (state.documentState.pages.length === 0) {
+            handleLoadSample('resume');
+          }
+          setCurrentView('editor');
+          setIsAiTextAssistOpen(true);
+          break;
         case 'blank':
           handleLoadSample('blank');
           setCurrentView('editor');
@@ -294,6 +334,37 @@ export default function PDFEditorPage() {
     },
     [handleLoadSample, state.documentState.pages.length]
   );
+
+  // Apply AI Text Replacement to selected element
+  const handleApplyTextReplacement = useCallback(
+    (elementId: string, newText: string) => {
+      setState((prev) => {
+        const nextElements = prev.documentState.elements.map((el) =>
+          el.id === elementId ? ({ ...el, text: newText } as TextElement) : el
+        );
+        pushHistory('AI text replacement', nextElements, prev.documentState.pages);
+        return {
+          ...prev,
+          documentState: {
+            ...prev.documentState,
+            elements: nextElements,
+          },
+        };
+      });
+    },
+    [pushHistory]
+  );
+
+  // Rename document
+  const handleRenameDocument = useCallback((newName: string) => {
+    setState((prev) => ({
+      ...prev,
+      documentState: {
+        ...prev.documentState,
+        fileName: newName,
+      },
+    }));
+  }, []);
 
   // Add Element to document
   const handleAddElement = useCallback(
@@ -687,6 +758,9 @@ export default function PDFEditorPage() {
             onExportPdf={() => setState((prev) => ({ ...prev, isExportModalOpen: true }))}
             onNavigateHome={() => setCurrentView('home')}
             onOpenToolModal={(tool) => handleOpenTool(tool as ToolId)}
+            onOpenAiChat={() => setIsAiChatOpen(true)}
+            onOpenAiSummarize={() => setIsAiSummarizeOpen(true)}
+            onOpenAiInsights={() => setIsAiInsightsOpen(true)}
           />
 
           {/* Tool Ribbon */}
@@ -704,6 +778,7 @@ export default function PDFEditorPage() {
             onUpdateState={setState}
             onDeleteSelected={handleDeleteSelected}
             onDuplicateSelected={handleDuplicateSelected}
+            onOpenAiTextAssist={() => setIsAiTextAssistOpen(true)}
           />
 
           {/* Main Workspace Area */}
@@ -717,6 +792,9 @@ export default function PDFEditorPage() {
               onDeletePage={handleDeletePage}
               onDuplicatePage={handleDuplicatePage}
               onAddBlankPage={handleAddBlankPage}
+              onOpenAiChat={() => setIsAiChatOpen(true)}
+              onOpenAiSummarize={() => setIsAiSummarizeOpen(true)}
+              onOpenAiInsights={() => setIsAiInsightsOpen(true)}
             />
 
             {/* Multi-Page Canvas Viewport */}
@@ -740,7 +818,41 @@ export default function PDFEditorPage() {
         </div>
       )}
 
-      {/* ================= ALL MODALS ================= */}
+      {/* ================= ALL MODALS & AI DRAWERS ================= */}
+      <AiChatDrawer
+        isOpen={isAiChatOpen}
+        onClose={() => setIsAiChatOpen(false)}
+        documentState={state.documentState}
+        activePageIndex={state.activePageIndex}
+      />
+
+      <AiSummarizeModal
+        isOpen={isAiSummarizeOpen}
+        onClose={() => setIsAiSummarizeOpen(false)}
+        documentState={state.documentState}
+        onShowToast={showToast}
+      />
+
+      <AiTextAssistModal
+        isOpen={isAiTextAssistOpen}
+        onClose={() => setIsAiTextAssistOpen(false)}
+        selectedTextElement={
+          (state.documentState.elements.find(
+            (el) => el.id === state.selectedElementId && el.type === 'text'
+          ) as TextElement) || null
+        }
+        onApplyReplacement={handleApplyTextReplacement}
+        onShowToast={showToast}
+      />
+
+      <AiInsightsModal
+        isOpen={isAiInsightsOpen}
+        onClose={() => setIsAiInsightsOpen(false)}
+        documentState={state.documentState}
+        onRenameDocument={handleRenameDocument}
+        onShowToast={showToast}
+      />
+
       <MergePdfModal
         isOpen={isMergeModalOpen}
         onClose={() => setIsMergeModalOpen(false)}

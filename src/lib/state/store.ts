@@ -39,7 +39,7 @@ export interface AppState {
     backgroundColor: string;
   };
   zoom: number;
-  sidebarTab: 'pages' | 'layers' | 'info' | 'history';
+  sidebarTab: 'pages' | 'layers' | 'info' | 'history' | 'ai';
   isSidebarOpen: boolean;
   theme: 'dark' | 'light';
   isSignatureModalOpen: boolean;

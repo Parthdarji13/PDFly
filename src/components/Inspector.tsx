@@ -17,6 +17,7 @@ import {
   MoveRight,
   Check,
   Type,
+  Sparkles,
 } from 'lucide-react';
 import { AppState } from '../lib/state/store';
 import { AVAILABLE_FONTS } from '../lib/pdf/fontMatcher';
@@ -27,6 +28,7 @@ interface InspectorProps {
   onUpdateState: (updater: (prev: AppState) => AppState) => void;
   onDeleteSelected: () => void;
   onDuplicateSelected: () => void;
+  onOpenAiTextAssist?: () => void;
 }
 
 export const Inspector: React.FC<InspectorProps> = ({
@@ -34,6 +36,7 @@ export const Inspector: React.FC<InspectorProps> = ({
   onUpdateState,
   onDeleteSelected,
   onDuplicateSelected,
+  onOpenAiTextAssist,
 }) => {
   const selectedEl = state.documentState.elements.find(
     (el) => el.id === state.selectedElementId
@@ -238,6 +241,26 @@ export const Inspector: React.FC<InspectorProps> = ({
               />
             </div>
           </div>
+
+          {/* AI Text Assist Trigger */}
+          {onOpenAiTextAssist && selectedEl?.type === 'text' && (
+            <div className="inspector-group">
+              <button
+                className="btn-primary"
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '11.5px',
+                  gap: '4px',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                }}
+                onClick={onOpenAiTextAssist}
+                title="Use Claude AI to fix grammar, rewrite tone, concise or translate selected text"
+              >
+                <Sparkles size={13} />
+                <span>AI Assist</span>
+              </button>
+            </div>
+          )}
         </>
       )}
 

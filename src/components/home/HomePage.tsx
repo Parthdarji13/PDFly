@@ -25,11 +25,18 @@ import {
   ChevronDown,
   HelpCircle,
   FileText,
+  MessageSquare,
+  Brain,
+  Bot,
 } from 'lucide-react';
 import { AppState } from '../../lib/state/store';
 
 export type ToolId =
   | 'edit'
+  | 'chat'
+  | 'summarize'
+  | 'insights'
+  | 'aiAssist'
   | 'merge'
   | 'split'
   | 'compress'
@@ -54,13 +61,49 @@ interface ToolCardInfo {
   id: ToolId;
   title: string;
   description: string;
-  category: 'organize' | 'convert' | 'edit' | 'optimize';
+  category: 'ai' | 'organize' | 'convert' | 'edit' | 'optimize';
   badge?: string;
   icon: React.ReactNode;
   gradient: string;
 }
 
 const TOOLS_LIST: ToolCardInfo[] = [
+  {
+    id: 'chat',
+    title: 'Chat with PDF',
+    description: 'Ask questions, extract facts, check clauses, and get precision answers with Claude Sonnet AI.',
+    category: 'ai',
+    badge: 'AI POWERED',
+    icon: <MessageSquare size={22} />,
+    gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+  },
+  {
+    id: 'summarize',
+    title: 'AI Auto-Summarize',
+    description: 'Generate high-impact executive summaries, bullet highlights, and key takeaways in seconds.',
+    category: 'ai',
+    badge: 'NEW AI',
+    icon: <Sparkles size={22} />,
+    gradient: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
+  },
+  {
+    id: 'insights',
+    title: 'AI Document Insights',
+    description: 'Classify documents, extract structured dates, amounts, parties, tables, and export to CSV/JSON.',
+    category: 'ai',
+    badge: 'SMART DATA',
+    icon: <Brain size={22} />,
+    gradient: 'linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)',
+  },
+  {
+    id: 'aiAssist',
+    title: 'AI Text Assist & Diff',
+    description: 'Fix grammar, rewrite tone (formal, legal, concise), and translate text directly on canvas.',
+    category: 'ai',
+    badge: 'REWRITE',
+    icon: <Bot size={22} />,
+    gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+  },
   {
     id: 'edit',
     title: 'Edit PDF',
@@ -184,7 +227,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenFile,
   onLoadSample,
 }) => {
-  const [activeCategory, setActiveCategory] = useState<'all' | 'organize' | 'convert' | 'edit' | 'optimize'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'ai' | 'organize' | 'convert' | 'edit' | 'optimize'>('all');
   const [isDragging, setIsDragging] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -324,6 +367,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="tools-category-tabs">
           {[
             { id: 'all', label: 'All Tools' },
+            { id: 'ai', label: '✨ AI Tools' },
             { id: 'organize', label: 'Organize PDF' },
             { id: 'convert', label: 'Convert to/from PDF' },
             { id: 'edit', label: 'Edit & Security' },

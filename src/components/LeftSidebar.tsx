@@ -17,6 +17,9 @@ import {
   Image as ImageIcon,
   Eraser,
   CheckCircle2,
+  Sparkles,
+  MessageSquare,
+  Brain,
 } from 'lucide-react';
 import { AppState } from '../lib/state/store';
 import { EditorElement } from '../lib/types';
@@ -29,6 +32,9 @@ interface LeftSidebarProps {
   onDeletePage: (pageIndex: number) => void;
   onDuplicatePage: (pageIndex: number) => void;
   onAddBlankPage: () => void;
+  onOpenAiChat?: () => void;
+  onOpenAiSummarize?: () => void;
+  onOpenAiInsights?: () => void;
 }
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -39,6 +45,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onDeletePage,
   onDuplicatePage,
   onAddBlankPage,
+  onOpenAiChat,
+  onOpenAiSummarize,
+  onOpenAiInsights,
 }) => {
   const currentTab = state.sidebarTab;
   const pages = state.documentState.pages;
@@ -121,6 +130,15 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         >
           <History size={14} />
           <span>History</span>
+        </button>
+        <button
+          className={`sidebar-tab-btn ${currentTab === 'ai' ? 'active' : ''}`}
+          onClick={() => onUpdateState((prev) => ({ ...prev, sidebarTab: 'ai' }))}
+          title="Claude AI Assistant Tools"
+          style={{ color: 'var(--accent-primary)' }}
+        >
+          <Sparkles size={14} />
+          <span>AI Tools</span>
         </button>
       </div>
 
@@ -360,6 +378,130 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* ================= Tab: AI Tools ================= */}
+        {currentTab === 'ai' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div
+              style={{
+                padding: '12px',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(168, 85, 247, 0.12))',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '13px', color: 'var(--accent-primary)', marginBottom: '4px' }}>
+                <Sparkles size={16} />
+                <span>PDFly AI Assistant</span>
+              </div>
+              <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                Instant document intelligence, Q&A, synthesis, and writing assistance.
+              </p>
+            </div>
+
+            {/* Quick Action 1: Chat with PDF */}
+            <button
+              className="btn-secondary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                gap: '8px',
+                padding: '10px 12px',
+                textAlign: 'left',
+              }}
+              onClick={onOpenAiChat}
+            >
+              <div
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  flexShrink: 0,
+                }}
+              >
+                <MessageSquare size={15} />
+              </div>
+              <div>
+                <div style={{ fontWeight: '600', fontSize: '12.5px' }}>Chat with Document</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Ask questions & citations</div>
+              </div>
+            </button>
+
+            {/* Quick Action 2: Summarize PDF */}
+            <button
+              className="btn-secondary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                gap: '8px',
+                padding: '10px 12px',
+                textAlign: 'left',
+              }}
+              onClick={onOpenAiSummarize}
+            >
+              <div
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'linear-gradient(135deg, #ec4899, #f43f5e)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  flexShrink: 0,
+                }}
+              >
+                <Sparkles size={15} />
+              </div>
+              <div>
+                <div style={{ fontWeight: '600', fontSize: '12.5px' }}>Auto-Summarize</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Executive takeaways & bullets</div>
+              </div>
+            </button>
+
+            {/* Quick Action 3: Document Insights */}
+            <button
+              className="btn-secondary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                gap: '8px',
+                padding: '10px 12px',
+                textAlign: 'left',
+              }}
+              onClick={onOpenAiInsights}
+            >
+              <div
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'linear-gradient(135deg, #06b6d4, #0284c7)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  flexShrink: 0,
+                }}
+              >
+                <Brain size={15} />
+              </div>
+              <div>
+                <div style={{ fontWeight: '600', fontSize: '12.5px' }}>Extract Data & Insights</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Entities, dates, amounts & tables</div>
+              </div>
+            </button>
           </div>
         )}
       </div>
