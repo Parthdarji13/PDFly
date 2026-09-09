@@ -22,6 +22,8 @@ import {
   Lock,
   ArrowRight,
   FolderOpen,
+  ChevronDown,
+  HelpCircle,
   FileText,
 } from 'lucide-react';
 import { AppState } from '../../lib/state/store';
@@ -65,7 +67,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     description: 'Edit original text with auto font matching, insert shapes, draw annotations, and add images.',
     category: 'edit',
     badge: 'POPULAR',
-    icon: <Edit3 size={24} />,
+    icon: <Edit3 size={22} />,
     gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
   },
   {
@@ -74,7 +76,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     description: 'Combine multiple PDF files in any order you want into a single organized document.',
     category: 'organize',
     badge: 'NEW',
-    icon: <Combine size={24} />,
+    icon: <Combine size={22} />,
     gradient: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
   },
   {
@@ -82,7 +84,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     title: 'Split PDF',
     description: 'Separate one page or a whole set for easy conversion into independent PDF files.',
     category: 'organize',
-    icon: <Scissors size={24} />,
+    icon: <Scissors size={22} />,
     gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
   },
   {
@@ -90,7 +92,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     title: 'Compress PDF',
     description: 'Reduce PDF file size while optimizing for maximal quality and fast loading.',
     category: 'optimize',
-    icon: <Minimize2 size={24} />,
+    icon: <Minimize2 size={22} />,
     gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
   },
   {
@@ -98,7 +100,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     title: 'PDF to JPG / PNG',
     description: 'Extract every page of a PDF document into high-resolution JPG or PNG images.',
     category: 'convert',
-    icon: <ImageIcon size={24} />,
+    icon: <ImageIcon size={22} />,
     gradient: 'linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)',
   },
   {
@@ -106,7 +108,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     title: 'JPG / PNG to PDF',
     description: 'Transform multiple photos, scans, and graphic images into a multi-page PDF document.',
     category: 'convert',
-    icon: <FilePlus size={24} />,
+    icon: <FilePlus size={22} />,
     gradient: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
   },
   {
@@ -114,7 +116,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     title: 'Organize Pages',
     description: 'Sort, reorder, rotate 90°, duplicate, or delete unwanted pages in your PDF.',
     category: 'organize',
-    icon: <Layers size={24} />,
+    icon: <Layers size={22} />,
     gradient: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
   },
   {
@@ -122,7 +124,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     title: 'Watermark PDF',
     description: 'Stamp custom text or confidential copyright watermarks over all PDF pages.',
     category: 'edit',
-    icon: <Droplet size={24} />,
+    icon: <Droplet size={22} />,
     gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
   },
   {
@@ -131,7 +133,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     description: 'Create and place legal digital signatures by drawing, typing cursive, or uploading.',
     category: 'edit',
     badge: 'FEATURED',
-    icon: <PenLine size={24} />,
+    icon: <PenLine size={22} />,
     gradient: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)',
   },
   {
@@ -139,7 +141,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     title: 'Redact & Whiteout',
     description: 'Permanently blackout or whiteout sensitive text, numbers, and graphics.',
     category: 'edit',
-    icon: <Eraser size={24} />,
+    icon: <Eraser size={22} />,
     gradient: 'linear-gradient(135deg, #64748b 0%, #334155 100%)',
   },
   {
@@ -147,7 +149,7 @@ const TOOLS_LIST: ToolCardInfo[] = [
     title: 'Search & Replace',
     description: 'Find any keyword across the entire PDF and replace it matching original typography.',
     category: 'edit',
-    icon: <Search size={24} />,
+    icon: <Search size={22} />,
     gradient: 'linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)',
   },
   {
@@ -155,8 +157,23 @@ const TOOLS_LIST: ToolCardInfo[] = [
     title: 'New Blank PDF',
     description: 'Start with a fresh vector canvas to build invoices, flyers, or documents from scratch.',
     category: 'organize',
-    icon: <Plus size={24} />,
+    icon: <Plus size={22} />,
     gradient: 'linear-gradient(135deg, #6366f1 0%, #3b82f6 100%)',
+  },
+];
+
+const FAQS = [
+  {
+    q: 'Is PDFly really 100% free and private?',
+    a: 'Yes! All PDF processing, font detection, text editing, merging, and rendering executes locally in your web browser. Your files are never uploaded to any cloud server.',
+  },
+  {
+    q: 'How does Smart Font Matching work?',
+    a: 'When you click any existing text on a PDF page, PDFly analyzes the vector glyph metrics to match font family, weight, point size, and fill color so your edits blend seamlessly.',
+  },
+  {
+    q: 'Can I combine multiple tools in one workflow?',
+    a: 'Absolutely. You can open any PDF in the Studio, add signatures and watermarks, reorder pages, and export your polished document in a single session.',
   },
 ];
 
@@ -169,6 +186,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const [activeCategory, setActiveCategory] = useState<'all' | 'organize' | 'convert' | 'edit' | 'optimize'>('all');
   const [isDragging, setIsDragging] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const toggleTheme = () => {
@@ -197,7 +215,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   return (
     <div className="home-container">
-      {/* ================= Top Home Navigation ================= */}
+      {/* ================= Top Sticky Header ================= */}
       <header className="home-nav">
         <div className="home-nav-inner">
           <div className="brand-section">
@@ -211,6 +229,13 @@ export const HomePage: React.FC<HomePageProps> = ({
               </div>
             </div>
           </div>
+
+          <nav className="home-nav-links">
+            <a href="#tools" className="home-nav-link">Tools</a>
+            <a href="#features" className="home-nav-link">Features</a>
+            <a href="#templates" className="home-nav-link">Templates</a>
+            <a href="#faq" className="home-nav-link">FAQ</a>
+          </nav>
 
           <div className="home-nav-actions">
             <input
@@ -234,7 +259,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             <button className="btn-primary" onClick={() => onOpenTool('edit')}>
               <Edit3 size={15} />
-              <span>Open Studio</span>
+              <span>Launch Studio</span>
             </button>
           </div>
         </div>
@@ -244,14 +269,14 @@ export const HomePage: React.FC<HomePageProps> = ({
       <section className="home-hero">
         <div className="hero-pill-badge">
           <Sparkles size={14} style={{ color: 'var(--accent-primary)' }} />
-          <span>Next-Gen Online PDF Platform</span>
+          <span>Next-Gen Private PDF Studio</span>
         </div>
 
         <h1 className="hero-title">
-          Every tool you need to work with PDFs in one place
+          Every tool you need to work with PDFs in <span className="hero-title-gradient">one place</span>
         </h1>
         <p className="hero-subtitle">
-          100% Free, secure, and client-side private. Edit original text, merge, split, convert, watermark, and sign PDFs with smart AI font matching.
+          100% Free, client-side private PDF workspace. Edit original text with auto font matching, merge, split, convert, watermark, and sign documents instantly.
         </p>
 
         {/* Global File Drop Box */}
@@ -269,18 +294,18 @@ export const HomePage: React.FC<HomePageProps> = ({
             <FolderOpen size={28} />
           </div>
           <div>
-            <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)' }}>
-              Select PDF file or drop here
+            <div style={{ fontSize: '15.5px', fontWeight: '700', color: 'var(--text-primary)' }}>
+              Select PDF file or drag and drop here
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '3px' }}>
               Files stay completely private on your device. Never uploaded to external servers.
             </div>
           </div>
         </div>
 
         {/* Quick Sample Launchers */}
-        <div className="hero-samples-bar">
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>✨ Or try editable samples:</span>
+        <div id="templates" className="hero-samples-bar">
+          <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>✨ Or try instant templates:</span>
           <button className="sample-chip" onClick={() => onLoadSample('invoice')}>
             📄 Business Invoice
           </button>
@@ -294,7 +319,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       </section>
 
       {/* ================= Category Tabs & Tools Grid ================= */}
-      <section className="home-tools-section">
+      <section id="tools" className="home-tools-section">
         {/* Category Tabs */}
         <div className="tools-category-tabs">
           {[
@@ -342,43 +367,66 @@ export const HomePage: React.FC<HomePageProps> = ({
       </section>
 
       {/* ================= Trust & Features Section ================= */}
-      <section className="home-features-section">
+      <section id="features" className="home-features-section">
         <div className="feature-trust-card">
-          <div className="feature-icon" style={{ color: 'var(--accent-success)' }}>
-            <ShieldCheck size={28} />
+          <div style={{ color: 'var(--accent-success)' }}>
+            <ShieldCheck size={30} />
           </div>
           <h4>100% Client-Side Privacy</h4>
-          <p>Your documents never leave your browser. All PDF rendering, editing, and merging happens locally on your computer.</p>
+          <p>Your documents never leave your browser. All PDF rendering, text editing, and page manipulation happens securely on your device.</p>
         </div>
 
         <div className="feature-trust-card">
-          <div className="feature-icon" style={{ color: 'var(--accent-primary)' }}>
-            <Zap size={28} />
+          <div style={{ color: 'var(--accent-primary)' }}>
+            <Zap size={30} />
           </div>
           <h4>AI Smart Font Matching</h4>
-          <p>Click any text in your PDF to edit it seamlessly. PDFly automatically extracts font family, size, weight, and color.</p>
+          <p>Click any existing text in your PDF to edit it effortlessly. PDFly automatically extracts and preserves font family, size, and style.</p>
         </div>
 
         <div className="feature-trust-card">
-          <div className="feature-icon" style={{ color: 'var(--accent-cyan)' }}>
-            <Lock size={28} />
+          <div style={{ color: 'var(--accent-cyan)' }}>
+            <Lock size={30} />
           </div>
           <h4>Vector Sharpness</h4>
-          <p>Preserves 100% crystal-clear vector fonts, shapes, and scalable graphic paths upon PDF export.</p>
+          <p>Preserves crystal-clear vector fonts, annotations, shapes, and scalable graphic paths upon final PDF export.</p>
         </div>
+      </section>
+
+      {/* ================= Interactive FAQ Section ================= */}
+      <section id="faq" className="faq-section">
+        <h3 className="faq-title">Frequently Asked Questions</h3>
+        {FAQS.map((faq, idx) => (
+          <div key={idx} className="faq-item">
+            <div
+              className="faq-question"
+              onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+            >
+              <span>{faq.q}</span>
+              <ChevronDown
+                size={18}
+                style={{
+                  transform: openFaq === idx ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform var(--transition-fast)',
+                }}
+              />
+            </div>
+            {openFaq === idx && <div className="faq-answer">{faq.a}</div>}
+          </div>
+        ))}
       </section>
 
       {/* ================= Footer ================= */}
       <footer className="home-footer">
         <div className="home-footer-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div className="brand-logo" style={{ width: '28px', height: '28px' }}>
               <Sparkles size={15} />
             </div>
-            <span style={{ fontWeight: '700', fontSize: '15px' }}>PDFly</span>
+            <span style={{ fontWeight: '700', fontSize: '15px' }}>PDFly Studio</span>
           </div>
-          <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-            © {new Date().getFullYear()} PDFly — Next-Gen PDF Platform. All rights reserved.
+          <div style={{ color: 'var(--text-muted)', fontSize: '12.5px' }}>
+            © {new Date().getFullYear()} PDFly. Client-side private PDF workspace.
           </div>
         </div>
       </footer>

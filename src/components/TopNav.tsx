@@ -98,7 +98,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           onClick={onNavigateHome}
           style={{ cursor: onNavigateHome ? 'pointer' : 'default' }}
         >
-          <Sparkles size={19} />
+          <Sparkles size={18} />
         </div>
         <div className="brand-meta">
           <div
@@ -125,7 +125,7 @@ export const TopNav: React.FC<TopNavProps> = ({
         </div>
       </div>
 
-      {/* File Action Buttons */}
+      {/* File Actions & Templates */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         <input
           type="file"
@@ -157,17 +157,17 @@ export const TopNav: React.FC<TopNavProps> = ({
           title="Load pre-made editable sample templates"
         >
           <option value="" disabled>
-            ✨ Try Samples...
+            ✨ Templates...
           </option>
           <option value="invoice">📄 Business Invoice</option>
           <option value="resume">👤 Executive Resume</option>
           <option value="contract">⚖️ Legal Agreement (NDA)</option>
-          <option value="blank">➕ Blank Document</option>
+          <option value="blank">➕ Blank Canvas</option>
         </select>
       </div>
 
       {/* Center Viewport & History Controls */}
-      <div className="nav-center">
+      <div className="nav-center-actions">
         <button
           className="nav-btn"
           onClick={onUndo}
@@ -195,7 +195,9 @@ export const TopNav: React.FC<TopNavProps> = ({
         >
           <ZoomOut size={16} />
         </button>
-        <span className="zoom-indicator hide-on-mobile">{Math.round(state.zoom * 100)}%</span>
+        <span className="zoom-indicator hide-on-mobile" style={{ fontSize: '12px', fontWeight: '600', padding: '0 4px', color: 'var(--text-secondary)' }}>
+          {Math.round(state.zoom * 100)}%
+        </span>
         <button
           className="nav-btn hide-on-mobile"
           onClick={() => setZoom(state.zoom + 0.15)}
@@ -214,11 +216,11 @@ export const TopNav: React.FC<TopNavProps> = ({
         <div className="nav-divider" />
 
         {/* Page Switcher */}
-        <div className="page-counter">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)', padding: '0 4px' }}>
           <span className="hide-on-mobile">Page</span>
           <input
             type="number"
-            className="page-num-input"
+            style={{ width: '32px', textAlign: 'center', padding: '2px 0', fontSize: '12px', fontWeight: '600' }}
             min={1}
             max={Math.max(1, state.documentState.pageCount)}
             value={state.activePageIndex + 1}
@@ -235,7 +237,7 @@ export const TopNav: React.FC<TopNavProps> = ({
 
       {/* Right Utility & Export Actions */}
       <div className="nav-actions">
-        {/* Search & Replace Modal Trigger */}
+        {/* Search & Replace Trigger */}
         <button
           className="btn-secondary"
           onClick={() => onUpdateState((prev) => ({ ...prev, isSearchModalOpen: true }))}
@@ -266,11 +268,11 @@ export const TopNav: React.FC<TopNavProps> = ({
 
         {/* Download PDF Trigger */}
         <button
-          className="btn-primary export-btn"
+          className="btn-primary"
           onClick={onExportPdf}
           title="Download edited PDF with matching embedded fonts"
         >
-          <Download size={16} />
+          <Download size={15} />
           <span className="export-btn-text">Download PDF</span>
         </button>
       </div>
