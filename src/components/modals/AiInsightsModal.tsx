@@ -30,7 +30,7 @@ interface AiInsightsModalProps {
   onRenameDocument?: (newName: string) => void;
   onShowToast: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   onOpenFile?: (file: File) => void;
-  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => void;
+  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
 }
 
 interface ExtractedInsights {
@@ -91,7 +91,7 @@ export const AiInsightsModal: React.FC<AiInsightsModalProps> = ({
       onShowToast('Document insights extracted successfully!', 'success');
     } catch (err: any) {
       console.error('Insights error:', err);
-      setErrorMsg(err.message || 'Failed to extract insights. Please check your Anthropic API key.');
+      setErrorMsg(err.message || 'Failed to extract insights. Please check your AI API key.');
     } finally {
       setIsLoading(false);
     }

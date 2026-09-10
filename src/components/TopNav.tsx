@@ -30,7 +30,7 @@ interface TopNavProps {
   state: AppState;
   onUpdateState: (updater: (prev: AppState) => AppState) => void;
   onOpenFile: (file: File) => void;
-  onLoadSample: (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => void;
+  onLoadSample: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -171,6 +171,9 @@ export const TopNav: React.FC<TopNavProps> = ({
           <option value="invoice">📄 Business Invoice</option>
           <option value="resume">👤 Executive Resume</option>
           <option value="contract">⚖️ Legal Agreement (NDA)</option>
+          <option value="certificate">🏆 Award Certificate</option>
+          <option value="proposal">📊 Project Proposal</option>
+          <option value="letter">✉️ Business Letter</option>
           <option value="blank">➕ Blank Canvas</option>
         </select>
       </div>

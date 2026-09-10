@@ -521,6 +521,361 @@ export async function generateSampleContract(): Promise<Uint8Array> {
 }
 
 /**
+ * Generates a realistic sample Certificate of Achievement PDF
+ */
+export async function generateSampleCertificate(): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  // Landscape A4 for Certificate
+  const page = pdfDoc.addPage([841.89, 595.28]);
+  const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+  const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+  const fontHelvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const gold = rgb(0.83, 0.68, 0.21);
+  const darkNavy = rgb(0.08, 0.16, 0.32);
+  const slate = rgb(0.3, 0.35, 0.42);
+
+  // Outer Decorative Border
+  page.drawRectangle({
+    x: 30,
+    y: 30,
+    width: 781.89,
+    height: 535.28,
+    borderColor: gold,
+    borderWidth: 3,
+    color: rgb(0.99, 0.99, 0.98),
+  });
+
+  // Inner Thin Border
+  page.drawRectangle({
+    x: 42,
+    y: 42,
+    width: 757.89,
+    height: 511.28,
+    borderColor: darkNavy,
+    borderWidth: 1,
+  });
+
+  // Top Title
+  page.drawText('CERTIFICATE OF RECOGNITION', {
+    x: 215,
+    y: 490,
+    size: 26,
+    font: fontBold,
+    color: darkNavy,
+  });
+
+  page.drawText('THIS CERTIFICATE IS PROUDLY PRESENTED TO', {
+    x: 275,
+    y: 450,
+    size: 11,
+    font: fontHelvBold,
+    color: gold,
+  });
+
+  // Recipient Name
+  page.drawText('ALEXANDER CHEN', {
+    x: 260,
+    y: 395,
+    size: 32,
+    font: fontBold,
+    color: darkNavy,
+  });
+
+  // Underline for recipient
+  page.drawLine({
+    start: { x: 200, y: 385 },
+    end: { x: 640, y: 385 },
+    thickness: 1.5,
+    color: gold,
+  });
+
+  // Description / Citation
+  page.drawText('For extraordinary dedication, exceptional leadership, and groundbreaking excellence in', {
+    x: 185,
+    y: 345,
+    size: 13,
+    font: fontItalic,
+    color: slate,
+  });
+  page.drawText('Advanced Cloud Software Architecture & Intelligent Systems Engineering.', {
+    x: 210,
+    y: 325,
+    size: 13,
+    font: fontBold,
+    color: darkNavy,
+  });
+
+  // Certificate ID & Date
+  page.drawText('Certificate ID: CERT-2026-98124', {
+    x: 100,
+    y: 190,
+    size: 10,
+    font: font,
+    color: slate,
+  });
+  page.drawText('Date Awarded: September 10, 2026', {
+    x: 100,
+    y: 172,
+    size: 10,
+    font: font,
+    color: slate,
+  });
+
+  // Signatures
+  page.drawLine({ start: { x: 100, y: 115 }, end: { x: 280, y: 115 }, thickness: 1, color: darkNavy });
+  page.drawText('Dr. Evelyn Vance, Ph.D.', { x: 100, y: 98, size: 11, font: fontBold, color: darkNavy });
+  page.drawText('Director of Engineering & Technology', { x: 100, y: 84, size: 9, font: font, color: slate });
+
+  page.drawLine({ start: { x: 540, y: 115 }, end: { x: 720, y: 115 }, thickness: 1, color: darkNavy });
+  page.drawText('Marcus Aurelius Sterling', { x: 540, y: 98, size: 11, font: fontBold, color: darkNavy });
+  page.drawText('President & Board Chairman', { x: 540, y: 84, size: 9, font: font, color: slate });
+
+  // Center Gold Seal Emblem
+  page.drawRectangle({
+    x: 375,
+    y: 80,
+    width: 90,
+    height: 90,
+    borderColor: gold,
+    borderWidth: 2,
+    color: rgb(0.98, 0.95, 0.88),
+  });
+  page.drawText('OFFICIAL', { x: 395, y: 135, size: 10, font: fontHelvBold, color: gold });
+  page.drawText('SEAL', { x: 405, y: 115, size: 12, font: fontBold, color: darkNavy });
+  page.drawText('2026', { x: 407, y: 95, size: 10, font: fontBold, color: gold });
+
+  return await pdfDoc.save();
+}
+
+/**
+ * Generates a realistic sample Business Project Proposal PDF
+ */
+export async function generateSampleProposal(): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+
+  const primary = rgb(0.39, 0.23, 0.91); // Indigo / Purple
+  const dark = rgb(0.12, 0.14, 0.18);
+  const gray = rgb(0.4, 0.45, 0.52);
+  const lightBg = rgb(0.96, 0.96, 0.99);
+
+  // Top Accent Banner
+  page.drawRectangle({
+    x: 40,
+    y: 775,
+    width: 515,
+    height: 38,
+    color: primary,
+  });
+  page.drawText('PROJECT PROPOSAL & SCOPE OF WORK', {
+    x: 55,
+    y: 788,
+    size: 13,
+    font: fontBold,
+    color: rgb(1, 1, 1),
+  });
+  page.drawText('CONFIDENTIAL', {
+    x: 460,
+    y: 788,
+    size: 9,
+    font: fontBold,
+    color: rgb(0.85, 0.82, 0.98),
+  });
+
+  // Project Header
+  page.drawText('Enterprise Next-Gen Document Intelligence Platform', {
+    x: 40,
+    y: 740,
+    size: 16,
+    font: fontBold,
+    color: dark,
+  });
+  page.drawText('Client: Vanguard Financial Global | Prepared by: Apex Solutions Design Studio', {
+    x: 40,
+    y: 722,
+    size: 9.5,
+    font: font,
+    color: gray,
+  });
+  page.drawText('Date: September 10, 2026 | Version: 2.4-Final', {
+    x: 40,
+    y: 708,
+    size: 9,
+    font: font,
+    color: gray,
+  });
+
+  // Section 1: Executive Summary
+  page.drawText('1. EXECUTIVE SUMMARY & OBJECTIVES', { x: 40, y: 675, size: 11, font: fontBold, color: primary });
+  page.drawText(
+    'This proposal outlines the engineering architecture, deliverables, and timeline to modernize Vanguard Financials',
+    { x: 40, y: 656, size: 9.5, font: font, color: dark }
+  );
+  page.drawText(
+    'PDF document processing pipeline with real-time vector editing, embedded fonts, and AI automated summarization.',
+    { x: 40, y: 642, size: 9.5, font: font, color: dark }
+  );
+
+  // Section 2: Deliverables Grid
+  page.drawText('2. CORE DELIVERABLES & MILESTONES', { x: 40, y: 610, size: 11, font: fontBold, color: primary });
+
+  // Table header
+  page.drawRectangle({ x: 40, y: 585, width: 515, height: 20, color: rgb(0.9, 0.92, 0.97) });
+  page.drawText('PHASE / MILESTONE', { x: 50, y: 591, size: 9, font: fontBold, color: dark });
+  page.drawText('DESCRIPTION & OUTPUT', { x: 180, y: 591, size: 9, font: fontBold, color: dark });
+  page.drawText('DURATION', { x: 410, y: 591, size: 9, font: fontBold, color: dark });
+  page.drawText('STATUS', { x: 485, y: 591, size: 9, font: fontBold, color: dark });
+
+  const deliverables = [
+    { phase: 'Phase 1: Discovery', desc: 'UI/UX wireframes & typography system', time: '2 Weeks', status: 'Approved' },
+    { phase: 'Phase 2: Core Engine', desc: 'Client-side PDF rendering & vector editing', time: '4 Weeks', status: 'In Progress' },
+    { phase: 'Phase 3: AI Intelligence', desc: 'Gemini AI summarization & OCR parser', time: '3 Weeks', status: 'Ready' },
+    { phase: 'Phase 4: QA & Deploy', desc: 'Enterprise security audit & rollout', time: '2 Weeks', status: 'Scheduled' },
+  ];
+
+  let dY = 565;
+  deliverables.forEach((d, idx) => {
+    if (idx % 2 === 1) {
+      page.drawRectangle({ x: 40, y: dY - 4, width: 515, height: 20, color: lightBg });
+    }
+    page.drawText(d.phase, { x: 50, y: dY, size: 9, font: fontBold, color: dark });
+    page.drawText(d.desc, { x: 180, y: dY, size: 8.5, font: font, color: gray });
+    page.drawText(d.time, { x: 410, y: dY, size: 8.5, font: font, color: dark });
+    page.drawText(d.status, { x: 485, y: dY, size: 8.5, font: fontBold, color: primary });
+    dY -= 22;
+  });
+
+  // Section 3: Investment Summary
+  page.drawText('3. INVESTMENT & COST SUMMARY', { x: 40, y: 460, size: 11, font: fontBold, color: primary });
+  page.drawRectangle({ x: 40, y: 395, width: 515, height: 50, color: lightBg });
+  page.drawText('Total Estimated Project Investment:', { x: 55, y: 425, size: 10, font: font, color: dark });
+  page.drawText('$42,500.00 USD', { x: 55, y: 407, size: 14, font: fontBold, color: primary });
+  page.drawText('Terms: 40% upfront deposit upon signing, 30% at Phase 2 completion, 30% upon final acceptance.', {
+    x: 230,
+    y: 415,
+    size: 8.5,
+    font: fontOblique,
+    color: gray,
+  });
+
+  // Acceptance & Sign-off
+  page.drawText('4. ACCEPTANCE & AUTHORIZATION', { x: 40, y: 365, size: 11, font: fontBold, color: primary });
+  page.drawText('By signing below, the parties agree to the project scope, deliverables, and terms outlined in this proposal.', {
+    x: 40,
+    y: 348,
+    size: 9,
+    font: font,
+    color: dark,
+  });
+
+  page.drawLine({ start: { x: 60, y: 270 }, end: { x: 250, y: 270 }, thickness: 1, color: dark });
+  page.drawText('Authorized Client Signature', { x: 60, y: 255, size: 8.5, font: font, color: gray });
+  page.drawText('Name: Sarah Jenkins, Product VP', { x: 60, y: 240, size: 8.5, font: fontBold, color: dark });
+
+  page.drawLine({ start: { x: 330, y: 270 }, end: { x: 520, y: 270 }, thickness: 1, color: dark });
+  page.drawText('Apex Solutions Executive Signature', { x: 330, y: 255, size: 8.5, font: font, color: gray });
+  page.drawText('Name: Marcus Sterling, CEO', { x: 330, y: 240, size: 8.5, font: fontBold, color: dark });
+
+  return await pdfDoc.save();
+}
+
+/**
+ * Generates a realistic sample Formal Business Letter PDF
+ */
+export async function generateSampleLetter(): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+  const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+
+  const dark = rgb(0.12, 0.14, 0.18);
+  const gray = rgb(0.35, 0.38, 0.45);
+  const navy = rgb(0.08, 0.22, 0.48);
+
+  // Letterhead
+  page.drawText('PINNACLE CAPITAL PARTNERS', {
+    x: 40,
+    y: 775,
+    size: 16,
+    font: fontBold,
+    color: navy,
+  });
+  page.drawText('500 Financial Plaza, 32nd Floor | New York, NY 10005 | contact@pinnaclecap.com', {
+    x: 40,
+    y: 760,
+    size: 9,
+    font: font,
+    color: gray,
+  });
+  page.drawLine({ start: { x: 40, y: 750 }, end: { x: 555, y: 750 }, thickness: 1, color: navy });
+
+  // Date
+  page.drawText('September 10, 2026', { x: 40, y: 720, size: 10, font: font, color: dark });
+
+  // Recipient
+  page.drawText('Mr. Jonathan Sterling', { x: 40, y: 690, size: 10, font: fontBold, color: dark });
+  page.drawText('Managing Director, Horizon Global Ventures', { x: 40, y: 676, size: 10, font: font, color: dark });
+  page.drawText('750 Tech Boulevard, Suite 1200', { x: 40, y: 662, size: 10, font: font, color: dark });
+  page.drawText('San Francisco, CA 94105', { x: 40, y: 648, size: 10, font: font, color: dark });
+
+  // Subject
+  page.drawText('SUBJECT: Official Notice of Investment Partnership & Term Sheet Execution', {
+    x: 40,
+    y: 615,
+    size: 10.5,
+    font: fontBold,
+    color: navy,
+  });
+
+  // Salutation
+  page.drawText('Dear Mr. Sterling,', { x: 40, y: 585, size: 10.5, font: font, color: dark });
+
+  // Body Paragraph 1
+  page.drawText(
+    'We are delighted to confirm that following comprehensive due diligence and unanimous approval by our Investment',
+    { x: 40, y: 555, size: 10, font: font, color: dark }
+  );
+  page.drawText(
+    'Committee, Pinnacle Capital Partners has formally approved the Series B growth investment in Horizon Global Ventures.',
+    { x: 40, y: 540, size: 10, font: font, color: dark }
+  );
+
+  // Body Paragraph 2
+  page.drawText(
+    'Your team has demonstrated remarkable execution, world-class technical vision, and sustainable market expansion.',
+    { x: 40, y: 510, size: 10, font: font, color: dark }
+  );
+  page.drawText(
+    'We look forward to partnering closely with you as we scale operations across European and Asian financial markets.',
+    { x: 40, y: 495, size: 10, font: font, color: dark }
+  );
+
+  // Body Paragraph 3
+  page.drawText(
+    'Please review and countersign the enclosed Definitive Agreements by September 25, 2026. Should your legal team',
+    { x: 40, y: 465, size: 10, font: font, color: dark }
+  );
+  page.drawText(
+    'require any clarifications, our general counsel remains at your full disposal.',
+    { x: 40, y: 450, size: 10, font: font, color: dark }
+  );
+
+  // Closing
+  page.drawText('Sincerely,', { x: 40, y: 400, size: 10.5, font: font, color: dark });
+  page.drawLine({ start: { x: 40, y: 345 }, end: { x: 220, y: 345 }, thickness: 1, color: dark });
+  page.drawText('Harrison Wells, CFA', { x: 40, y: 330, size: 10.5, font: fontBold, color: dark });
+  page.drawText('Senior Managing Partner, Pinnacle Capital Partners', { x: 40, y: 316, size: 9.5, font: fontItalic, color: gray });
+
+  return await pdfDoc.save();
+}
+
+/**
  * Creates a clean blank PDF document
  */
 export async function generateBlankPdf(pages: number = 1): Promise<Uint8Array> {
@@ -530,3 +885,4 @@ export async function generateBlankPdf(pages: number = 1): Promise<Uint8Array> {
   }
   return await pdfDoc.save();
 }
+

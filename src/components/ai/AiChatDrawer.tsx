@@ -33,7 +33,7 @@ interface AiChatDrawerProps {
   documentState: DocumentState;
   activePageIndex: number;
   onOpenFile?: (file: File) => void;
-  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => void;
+  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
 }
 
 const QUICK_PROMPTS = [

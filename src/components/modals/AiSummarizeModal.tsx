@@ -23,7 +23,7 @@ interface AiSummarizeModalProps {
   documentState: DocumentState;
   onShowToast: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   onOpenFile?: (file: File) => void;
-  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => void;
+  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
 }
 
 export const AiSummarizeModal: React.FC<AiSummarizeModalProps> = ({
@@ -75,7 +75,7 @@ export const AiSummarizeModal: React.FC<AiSummarizeModalProps> = ({
       onShowToast('Summary generated successfully!', 'success');
     } catch (err: any) {
       console.error('Summary error:', err);
-      setErrorMsg(err.message || 'Failed to generate summary. Please check your Anthropic API key.');
+      setErrorMsg(err.message || 'Failed to generate summary. Please check your AI API key.');
     } finally {
       setIsLoading(false);
     }

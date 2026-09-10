@@ -28,8 +28,10 @@ import {
   FileSpreadsheet,
   ChevronDown,
   HelpCircle,
+  LayoutTemplate,
 } from 'lucide-react';
 import { AppState } from '../../lib/state/store';
+import { TemplateGalleryModal } from '../modals/TemplateGalleryModal';
 
 export type ToolId =
   | 'edit'
@@ -56,7 +58,7 @@ interface HomePageProps {
   onUpdateState: (updater: (prev: AppState) => AppState) => void;
   onOpenTool: (toolId: ToolId) => void;
   onOpenFile: (file: File) => void;
-  onLoadSample: (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => void;
+  onLoadSample: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
@@ -67,6 +69,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onLoadSample,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -526,6 +529,18 @@ export const HomePage: React.FC<HomePageProps> = ({
             <h3 className="tool-tile-title">Unlock PDF</h3>
             <p className="tool-tile-desc">Remove password protection</p>
           </div>
+
+          {/* 11. PDF Templates */}
+          <div className="tool-tile-card" onClick={() => setIsTemplateGalleryOpen(true)}>
+            <div className="tool-tile-top">
+              <div className="tool-tile-icon-box bg-purple-tint">
+                <LayoutTemplate size={18} />
+              </div>
+              <ArrowRight size={14} className="tool-arrow-link" />
+            </div>
+            <h3 className="tool-tile-title">PDF Templates</h3>
+            <p className="tool-tile-desc">Invoice, Resume, NDA & Awards</p>
+          </div>
         </div>
       </section>
 
@@ -542,95 +557,203 @@ export const HomePage: React.FC<HomePageProps> = ({
             <p className="templates-subtitle">Save time with professionally designed PDF templates.</p>
             <button
               className="btn-browse-templates"
-              onClick={() => onLoadSample('invoice')}
+              onClick={() => setIsTemplateGalleryOpen(true)}
             >
               <span>Browse templates</span>
               <ArrowRight size={14} />
             </button>
           </div>
 
-          {/* Right Column: 4 Document Previews */}
+          {/* Right Column: 4 Rich Document Previews */}
           <div className="templates-preview-row">
             {/* Template 1: Invoice */}
             <div className="template-card" onClick={() => onLoadSample('invoice')}>
               <div className="template-doc-thumbnail">
                 <div className="mini-doc invoice-doc">
-                  <div className="mini-doc-header">
-                    <div className="mini-bar blue-bar" />
-                    <div className="mini-bar short-bar" />
+                  <div className="inv-top-bar" />
+                  <div className="inv-header">
+                    <div className="inv-brand">
+                      <div className="inv-company-name">APEX SOLUTIONS LLC</div>
+                      <div className="inv-company-sub">100 Innovation Way, CA</div>
+                    </div>
+                    <div className="inv-title-block">
+                      <div className="inv-title">INVOICE</div>
+                      <div className="inv-meta-line">#INV-2026-0891</div>
+                    </div>
                   </div>
-                  <div className="mini-doc-table">
-                    <div className="mini-row head-row" />
-                    <div className="mini-row" />
-                    <div className="mini-row" />
-                    <div className="mini-row" />
+
+                  <div className="inv-bill-box">
+                    <span className="inv-bill-label">BILLED TO:</span>
+                    <span className="inv-bill-client">Global Tech Innovations</span>
                   </div>
-                  <div className="mini-doc-total">
-                    <div className="mini-bar blue-bar" style={{ width: '40%', marginLeft: 'auto' }} />
+
+                  <table className="inv-table">
+                    <thead>
+                      <tr>
+                        <th>ITEM</th>
+                        <th style={{ textAlign: 'center' }}>QTY</th>
+                        <th style={{ textAlign: 'right' }}>TOTAL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Cloud Infrastructure</td>
+                        <td style={{ textAlign: 'center' }}>40h</td>
+                        <td style={{ textAlign: 'right' }}>$6,000</td>
+                      </tr>
+                      <tr>
+                        <td>Frontend Modernization</td>
+                        <td style={{ textAlign: 'center' }}>35h</td>
+                        <td style={{ textAlign: 'right' }}>$4,550</td>
+                      </tr>
+                      <tr>
+                        <td>Security Audit & Tests</td>
+                        <td style={{ textAlign: 'center' }}>1x</td>
+                        <td style={{ textAlign: 'right' }}>$2,400</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <div className="inv-totals-wrap">
+                    <div className="inv-total-row"><span>Subtotal:</span><span>$12,950</span></div>
+                    <div className="inv-total-row grand-total"><span>TOTAL:</span><span>$14,050.75</span></div>
+                  </div>
+
+                  <div className="inv-footer">
+                    <span>Silicon Valley Trust</span>
+                    <span>Net 30 Days</span>
                   </div>
                 </div>
               </div>
-              <span className="template-name">Invoice</span>
+              <span className="template-name">Business Invoice</span>
             </div>
 
             {/* Template 2: Resume */}
             <div className="template-card" onClick={() => onLoadSample('resume')}>
               <div className="template-doc-thumbnail">
                 <div className="mini-doc resume-doc">
-                  <div className="mini-resume-header">
-                    <div className="mini-circle-avatar" />
-                    <div className="mini-resume-name">
-                      <div className="mini-bar" style={{ width: '80%' }} />
-                      <div className="mini-bar" style={{ width: '50%' }} />
-                    </div>
+                  <div className="res-header">
+                    <div className="res-name">ALEXANDER R. VANCE</div>
+                    <div className="res-title">Lead Cloud Systems Architect</div>
+                    <div className="res-contact">alex.vance@techcorp.io • San Francisco, CA</div>
                   </div>
-                  <div className="mini-resume-columns">
-                    <div className="mini-resume-left">
-                      <div className="mini-bar" />
-                      <div className="mini-bar" />
-                      <div className="mini-bar" />
+
+                  <div className="res-columns">
+                    <div className="res-left-col">
+                      <div className="res-section-title">SKILLS</div>
+                      <div className="res-skill-tag">TypeScript</div>
+                      <div className="res-skill-tag">Next.js • React</div>
+                      <div className="res-skill-tag">AWS • Docker</div>
+                      <div className="res-skill-tag">Kubernetes</div>
+
+                      <div className="res-section-title" style={{ marginTop: '3px' }}>EDUCATION</div>
+                      <div className="res-degree">M.S. Comp Sci</div>
+                      <div className="res-school">Stanford Univ</div>
                     </div>
-                    <div className="mini-resume-right">
-                      <div className="mini-bar" />
-                      <div className="mini-bar" />
-                      <div className="mini-bar" />
-                      <div className="mini-bar" />
+
+                    <div className="res-right-col">
+                      <div className="res-section-title">EXPERIENCE</div>
+                      <div className="res-job">
+                        <div className="res-job-title">Lead Cloud Architect</div>
+                        <div className="res-job-company">Nexus Global • 2022–Pres.</div>
+                        <div className="res-bullet">• Scaled microservices to 120k req/s</div>
+                        <div className="res-bullet">• Cut annual cloud cost by $1.8M</div>
+                      </div>
+
+                      <div className="res-job">
+                        <div className="res-job-title">Senior Full Stack Eng.</div>
+                        <div className="res-job-company">Zenith Software • 2018–22</div>
+                        <div className="res-bullet">• Built real-time analytics engine</div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <span className="template-name">Resume</span>
+              <span className="template-name">Executive Resume</span>
             </div>
 
             {/* Template 3: NDA Agreement */}
             <div className="template-card" onClick={() => onLoadSample('contract')}>
               <div className="template-doc-thumbnail">
                 <div className="mini-doc nda-doc">
-                  <div className="mini-bar" style={{ width: '60%', margin: '0 auto 8px auto', height: '4px' }} />
-                  <div className="mini-bar" style={{ width: '90%' }} />
-                  <div className="mini-bar" style={{ width: '100%' }} />
-                  <div className="mini-bar" style={{ width: '85%' }} />
-                  <div className="mini-bar" style={{ width: '95%' }} />
-                  <div className="mini-bar" style={{ width: '70%' }} />
-                  <div className="mini-sig-lines">
-                    <div className="mini-sig-box" />
-                    <div className="mini-sig-box" />
+                  <div className="nda-header">
+                    <div className="nda-title">NON-DISCLOSURE AGREEMENT</div>
+                    <div className="nda-subtitle">Mutual Confidentiality Agreement</div>
+                  </div>
+
+                  <div className="nda-parties-box">
+                    <div><strong>Party 1:</strong> Horizon Tech Inc. (Delaware)</div>
+                    <div><strong>Party 2:</strong> Quantum Leap Innovations LLC</div>
+                  </div>
+
+                  <div className="nda-clause">
+                    <div className="nda-clause-title">1. CONFIDENTIAL INFORMATION</div>
+                    <div className="nda-clause-text">
+                      Includes all trade secrets, source code, financial records, algorithms, customer lists, and proprietary documents.
+                    </div>
+                  </div>
+
+                  <div className="nda-clause">
+                    <div className="nda-clause-title">2. NON-DISCLOSURE OBLIGATIONS</div>
+                    <div className="nda-clause-text">
+                      The Receiving Party agrees to hold all proprietary materials in strictest confidence with utmost care.
+                    </div>
+                  </div>
+
+                  <div className="nda-signatures">
+                    <div className="nda-sig-col">
+                      <div className="nda-sig-label">DISCLOSING PARTY:</div>
+                      <div className="nda-sig-line"><span className="nda-x">✕</span> <em>Marcus Sterling</em></div>
+                      <div className="nda-sig-name">Marcus Sterling, CEO</div>
+                    </div>
+                    <div className="nda-sig-col">
+                      <div className="nda-sig-label">RECEIVING PARTY:</div>
+                      <div className="nda-sig-line"><span className="nda-x">✕</span> <em>Elena Rostova</em></div>
+                      <div className="nda-sig-name">Elena Rostova, Director</div>
+                    </div>
                   </div>
                 </div>
               </div>
               <span className="template-name">NDA Agreement</span>
             </div>
 
-            {/* Template 4: Blank Document */}
-            <div className="template-card" onClick={() => onLoadSample('blank')}>
+            {/* Template 4: Certificate */}
+            <div className="template-card" onClick={() => onLoadSample('certificate')}>
               <div className="template-doc-thumbnail">
-                <div className="mini-doc blank-doc">
-                  <div className="blank-watermark-icon">
-                    <FilePlus size={24} style={{ opacity: 0.2 }} />
+                <div className="mini-doc certificate-doc">
+                  <div className="cert-border-outer">
+                    <div className="cert-border-inner">
+                      <div className="cert-header-tag">CERTIFICATE OF RECOGNITION</div>
+                      <div className="cert-presented">THIS CERTIFICATE IS PROUDLY PRESENTED TO</div>
+                      <div className="cert-name">ALEXANDER CHEN</div>
+                      <div className="cert-line" />
+                      <div className="cert-desc">
+                        For extraordinary dedication, exceptional leadership, and groundbreaking engineering excellence.
+                      </div>
+
+                      <div className="cert-bottom-row">
+                        <div className="cert-sig-block">
+                          <div className="cert-sig-line"><em>Dr. Evelyn Vance</em></div>
+                          <div className="cert-sig-title">Director of Tech</div>
+                        </div>
+
+                        <div className="cert-gold-seal">
+                          <div className="cert-seal-inner">
+                            <span>SEAL</span>
+                            <strong>2026</strong>
+                          </div>
+                        </div>
+
+                        <div className="cert-sig-block">
+                          <div className="cert-sig-line"><em>Marcus Sterling</em></div>
+                          <div className="cert-sig-title">President & Chair</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-              <span className="template-name">Blank Document</span>
+              <span className="template-name">Award Certificate</span>
             </div>
           </div>
         </div>
@@ -782,7 +905,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </a>
               </li>
               <li>
-                <a href="#templates" onClick={(e) => { e.preventDefault(); onLoadSample('invoice'); }}>
+                <a href="#templates" onClick={(e) => { e.preventDefault(); setIsTemplateGalleryOpen(true); }}>
                   Templates
                 </a>
               </li>
@@ -809,6 +932,14 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </div>
       </footer>
+
+      {/* Template Gallery Modal */}
+      <TemplateGalleryModal
+        isOpen={isTemplateGalleryOpen}
+        onClose={() => setIsTemplateGalleryOpen(false)}
+        onSelectTemplate={onLoadSample}
+      />
     </div>
   );
 };
+

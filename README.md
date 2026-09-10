@@ -48,9 +48,9 @@ PDFly integrates Google Gemini API (primary) and Anthropic Claude API (fallback)
 
 ## 🔒 Security, Robustness & Retry Logic
 
-- **Multi-Engine Server-Side AI:** Powered primarily by Google Gemini (`gemini-flash-latest`, with automatic fallbacks to `gemini-3.5-flash`, `gemini-3.5-flash-lite`, and `gemini-pro-latest`) and Anthropic Claude (`claude-sonnet-4-6` / `claude-3-5-sonnet-20241022`) as fallback.
+- **Multi-Engine Server-Side AI:** Powered primarily by Google Gemini (`gemini-3.5-flash`, `gemini-flash-lite-latest`, `gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-flash-latest`) and Anthropic Claude (`claude-3-5-sonnet-20241022` / `claude-3-7-sonnet-20250219`) as fallback.
 - **Zero Key Leakage:** API keys are loaded strictly on the server in Next.js route handlers. No API key is ever sent to or stored in the browser.
-- **Exponential Backoff Retries:** Automatically performs up to 3 retries with exponential backoff on HTTP 429 (Rate limit), 503 (High demand / Service unavailable), and network timeouts.
+- **Exponential Backoff Retries:** Automatically performs retries and swift model fallbacks on HTTP 429 (Rate limit), 503 (High demand / Service unavailable), and network timeouts.
 - **User-Friendly Error Handling:** If all retries fail, clean and reassuring messages are surfaced in the UI (*"The AI assistant is busy right now. Please try again in a moment."*) rather than raw unformatted API stack traces.
 - **In-Memory Rate Limiting:** Built-in sliding rate limiters protect routes from client-side flooding.
 - **Context Guardrails:** Safe text chunking prevents payload overflows and handles documents of any page length.
@@ -68,11 +68,11 @@ cp .env.example .env.local
 ```env
 # Primary (Recommended): Google Gemini API Key
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-flash-latest
+GEMINI_MODEL=gemini-3.5-flash
 
 # Fallback / Alternative: Anthropic Claude API Key
 ANTHROPIC_API_KEY=sk-ant-api03-your-actual-api-key-here
-ANTHROPIC_MODEL=claude-sonnet-4-6
+ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
 ```
 
 > **Note:** `GEMINI_API_KEY` takes priority. If not provided or empty, PDFly automatically falls back to `ANTHROPIC_API_KEY`.

@@ -13,7 +13,7 @@ interface CanvasViewportProps {
   onAddElement: (element: EditorElement, actionDesc?: string) => void;
   onUpdateElement: (id: string, updates: Partial<EditorElement>) => void;
   onSelectElement: (id: string | null) => void;
-  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => void;
+  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
 }
 
 export const CanvasViewport: React.FC<CanvasViewportProps> = ({

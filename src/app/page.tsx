@@ -36,6 +36,9 @@ import {
   generateSampleInvoice,
   generateSampleResume,
   generateSampleContract,
+  generateSampleCertificate,
+  generateSampleProposal,
+  generateSampleLetter,
   generateBlankPdf,
 } from '../lib/samples/sampleGenerator';
 
@@ -215,7 +218,7 @@ export default function PDFEditorPage() {
 
   // Load pre-made sample document
   const handleLoadSample = useCallback(
-    async (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => {
+    async (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => {
       try {
         let pdfBytes: Uint8Array;
         let fileName = 'sample.pdf';
@@ -229,6 +232,15 @@ export default function PDFEditorPage() {
         } else if (sampleType === 'contract') {
           pdfBytes = await generateSampleContract();
           fileName = 'non_disclosure_agreement.pdf';
+        } else if (sampleType === 'certificate') {
+          pdfBytes = await generateSampleCertificate();
+          fileName = 'certificate_of_achievement.pdf';
+        } else if (sampleType === 'proposal') {
+          pdfBytes = await generateSampleProposal();
+          fileName = 'business_proposal.pdf';
+        } else if (sampleType === 'letter') {
+          pdfBytes = await generateSampleLetter();
+          fileName = 'formal_business_letter.pdf';
         } else {
           pdfBytes = await generateBlankPdf();
           fileName = 'blank_canvas.pdf';
@@ -236,10 +248,10 @@ export default function PDFEditorPage() {
 
         await loadPdfBytes(pdfBytes, fileName);
         setCurrentView('editor');
-        showToast(`Loaded ${sampleType.toUpperCase()} sample template!`, 'success');
+        showToast(`Loaded ${sampleType.toUpperCase()} template!`, 'success');
       } catch (err: any) {
         console.error('Error loading sample:', err);
-        showToast('Failed to generate sample PDF', 'error');
+        showToast('Failed to generate template PDF', 'error');
       }
     },
     [loadPdfBytes, showToast]

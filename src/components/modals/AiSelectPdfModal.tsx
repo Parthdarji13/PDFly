@@ -22,7 +22,7 @@ interface AiSelectPdfModalProps {
   onClose: () => void;
   feature: AiFeatureType;
   onSelectFile: (file: File) => void;
-  onSelectSample: (sampleType: 'invoice' | 'resume' | 'contract' | 'blank') => void;
+  onSelectSample: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
 }
 
 const FEATURE_CONFIG: Record<
