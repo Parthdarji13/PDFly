@@ -25,8 +25,9 @@ import {
   Table,
   UploadCloud,
   Check,
-  Send,
   FileSpreadsheet,
+  ChevronDown,
+  HelpCircle,
 } from 'lucide-react';
 import { AppState } from '../../lib/state/store';
 
@@ -66,8 +67,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onLoadSample,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
-  const [subscribed, setSubscribed] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleTheme = () => {
@@ -86,15 +86,6 @@ export const HomePage: React.FC<HomePageProps> = ({
       } else if (file.type.startsWith('image/')) {
         onOpenTool('imageToPdf');
       }
-    }
-  };
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (emailInput.trim()) {
-      setSubscribed(true);
-      setEmailInput('');
-      setTimeout(() => setSubscribed(false), 4000);
     }
   };
 
@@ -133,7 +124,6 @@ export const HomePage: React.FC<HomePageProps> = ({
             <a href="#tools" className="home-nav-link">Tools</a>
             <a href="#ai-studio" className="home-nav-link">AI Studio</a>
             <a href="#templates" className="home-nav-link">Templates</a>
-            <a href="#pricing" className="home-nav-link">Pricing</a>
             <a href="#faq" className="home-nav-link">FAQ</a>
           </nav>
 
@@ -141,14 +131,6 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div className="home-nav-actions">
             <button className="nav-btn theme-toggle-btn" onClick={toggleTheme} title="Toggle Dark/Light Mode">
               {state.theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
-            </button>
-
-            <button
-              className="btn-ghost-signin"
-              onClick={() => onOpenTool('edit')}
-              title="Quick access to workspace"
-            >
-              Sign in
             </button>
 
             <button
@@ -654,7 +636,81 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
       </section>
 
-      {/* ================= 7. Bottom Banner CTA Card ================= */}
+      {/* ================= 7. FAQ Section ================= */}
+      <section id="faq" className="home-faq-section">
+        <div className="section-header-wrap">
+          <div className="section-pill-tag">FAQ</div>
+        </div>
+
+        <div className="faq-header-row">
+          <h2 className="faq-main-title">
+            Frequently Asked <span className="text-purple-accent">Questions.</span>
+          </h2>
+          <p className="faq-subtitle">
+            Everything you need to know about PDFly privacy, features and capabilities.
+          </p>
+        </div>
+
+        <div className="faq-accordion-list">
+          {[
+            {
+              q: 'Is my document data private and secure?',
+              a: 'Yes, absolutely. All core PDF rendering, text editing, vector annotations, merging, splitting, and conversions execute locally inside your browser using WebAssembly and HTML5 canvas. Your document files are never uploaded, stored, or indexed on our application servers.',
+            },
+            {
+              q: 'How do the AI features process my document text?',
+              a: 'When you explicitly choose to use an AI feature (such as Chat with PDF, Auto-Summarize, Smart Text Assist, or Document Insights), extracted text from your active document is securely sent via server-side Next.js route handlers to Google Gemini API (or Anthropic Claude fallback) solely to generate your response. API keys remain confidential on the server, and document contents are not saved or shared.',
+            },
+            {
+              q: 'Do I need to create an account or sign up?',
+              a: 'No account, login, or subscription is required. PDFly is open and ready to use immediately upon opening the app—just drop a PDF and start creating.',
+            },
+            {
+              q: 'What file sizes and formats are supported?',
+              a: 'PDFly smoothly handles PDF documents up to 100MB directly in your browser. You can also convert image formats (PNG, JPG, WebP, AVIF) into multi-page PDFs or export PDF pages into high-resolution images.',
+            },
+            {
+              q: 'How does font matching and text editing work?',
+              a: 'When you click to edit text on any PDF page, PDFly analyzes the vector font metadata (font family, weight, style, and point size) to detect embedded fonts or automatically match the closest typography, allowing you to edit text in place seamlessly.',
+            },
+            {
+              q: 'Can I use PDFly offline?',
+              a: 'Yes! Core editing tools—including text editing, shapes, digital signatures, annotations, merging, splitting, watermarking, and page organizing—work entirely client-side even without an active internet connection after the app is loaded. Only the optional AI assistant features require internet connectivity.',
+            },
+            {
+              q: 'Is PDFly really free to use?',
+              a: 'Yes! PDFly is free to use with full access to all editing tools, export options, and core features without any paywalls, forced watermarks, or document quantity limits.',
+            },
+          ].map((item, idx) => {
+            const isOpen = openFaqIndex === idx;
+            return (
+              <div
+                key={`faq-${idx}`}
+                className={`faq-item-card ${isOpen ? 'faq-item-open' : ''}`}
+                onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
+              >
+                <div className="faq-question-row">
+                  <div className="faq-question-text">
+                    <HelpCircle size={18} className="faq-icon" />
+                    <span>{item.q}</span>
+                  </div>
+                  <ChevronDown
+                    size={18}
+                    className={`faq-chevron ${isOpen ? 'rotate-180' : ''}`}
+                  />
+                </div>
+                {isOpen && (
+                  <div className="faq-answer-content">
+                    <p>{item.a}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ================= 8. Bottom Banner CTA Card ================= */}
       <section className="home-cta-banner-section">
         <div className="cta-banner-card">
           <div className="cta-banner-left">
@@ -680,8 +736,8 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
       </section>
 
-      {/* ================= 8. Modern Footer ================= */}
-      <footer id="faq" className="home-site-footer">
+      {/* ================= 9. Modern Footer ================= */}
+      <footer className="home-site-footer">
         <div className="footer-columns-container">
           {/* Brand Col */}
           <div className="footer-col footer-brand-col">
@@ -692,16 +748,44 @@ export const HomePage: React.FC<HomePageProps> = ({
               <span className="brand-title" style={{ fontSize: '18px' }}>PDFly</span>
             </div>
             <p className="footer-tagline">Smarter PDFs for a simpler tomorrow.</p>
+
+            <div className="footer-social-icons" style={{ marginTop: '4px' }}>
+              <a
+                href="https://github.com/Parthdarji13/PDFly"
+                target="_blank"
+                rel="noreferrer"
+                className="social-icon-btn"
+                title="PDFly on GitHub"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+              </a>
+              {/* TODO: add real Twitter / X URL when account is available */}
+              {/* TODO: add real LinkedIn URL when profile is available */}
+              {/* TODO: add real YouTube URL when channel is available */}
+            </div>
           </div>
 
           {/* Product Col */}
           <div className="footer-col">
             <h5 className="footer-heading">Product</h5>
             <ul className="footer-links-list">
-              <li><a href="#tools" onClick={() => onOpenTool('edit')}>Tools</a></li>
-              <li><a href="#ai-studio" onClick={() => onOpenTool('chat')}>AI Studio</a></li>
-              <li><a href="#templates" onClick={() => onLoadSample('invoice')}>Templates</a></li>
-              <li><a href="#pricing">Pricing</a></li>
+              <li>
+                <a href="#tools" onClick={(e) => { e.preventDefault(); onOpenTool('edit'); }}>
+                  Tools
+                </a>
+              </li>
+              <li>
+                <a href="#ai-studio" onClick={(e) => { e.preventDefault(); onOpenTool('chat'); }}>
+                  AI Studio
+                </a>
+              </li>
+              <li>
+                <a href="#templates" onClick={(e) => { e.preventDefault(); onLoadSample('invoice'); }}>
+                  Templates
+                </a>
+              </li>
             </ul>
           </div>
 
@@ -711,44 +795,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <ul className="footer-links-list">
               <li><a href="#faq">FAQ</a></li>
               <li><a href="mailto:support@pdfly.app">Contact</a></li>
-              <li><a href="#privacy">Privacy Policy</a></li>
-              <li><a href="#terms">Terms of Service</a></li>
             </ul>
-          </div>
-
-          {/* Stay Updated Col */}
-          <div className="footer-col footer-subscribe-col">
-            <h5 className="footer-heading">Stay updated</h5>
-            <p className="footer-sub-text">Get the latest features and tips.</p>
-
-            <form className="footer-subscribe-form" onSubmit={handleSubscribe}>
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className="footer-email-input"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                required
-              />
-              <button type="submit" className="btn-subscribe">
-                {subscribed ? 'Subscribed!' : 'Subscribe'}
-              </button>
-            </form>
-
-            <div className="footer-social-icons">
-              <a href="https://github.com" target="_blank" rel="noreferrer" className="social-icon-btn" title="GitHub">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-              </a>
-              <a href="https://twitter.com" target="_blank" rel="noreferrer" className="social-icon-btn" title="Twitter / X">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-              </a>
-              <a href="https://linkedin.com" target="_blank" rel="noreferrer" className="social-icon-btn" title="LinkedIn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
-              </a>
-              <a href="https://youtube.com" target="_blank" rel="noreferrer" className="social-icon-btn" title="YouTube">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-              </a>
-            </div>
           </div>
         </div>
 

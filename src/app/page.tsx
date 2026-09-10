@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { HomePage, ToolId } from '../components/home/HomePage';
 import { TopNav } from '../components/TopNav';
 import { ToolRibbon } from '../components/ToolRibbon';
@@ -42,7 +42,7 @@ import {
 export default function PDFEditorPage() {
   const [currentView, setCurrentView] = useState<'home' | 'editor'>('home');
   const [state, setState] = useState<AppState>(initialAppState);
-  const [pdfDocProxy, setPdfDocProxy] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pdfDocProxy, setPdfDocProxy] = useState<PDFDocumentProxy | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Tool Modals State

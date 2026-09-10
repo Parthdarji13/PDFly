@@ -1,15 +1,27 @@
-import * as pdfjsLib from 'pdfjs-dist';
+import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { PageInfo, DetectedTextItem, ExtractedFontInfo } from '../types';
 import { matchPdfFont, calculateFontSizeFromTransform, cleanPdfFontName } from './fontMatcher';
 import { registerWebFont } from './fontRegistry';
 
-// Configure PDF.js worker
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+let cachedPdfjsLib: typeof import('pdfjs-dist') | null = null;
+
+/**
+ * Dynamically loads and configures PDF.js only inside the client-side browser environment.
+ */
+export async function getPdfjsLib(): Promise<typeof import('pdfjs-dist')> {
+  if (typeof window === 'undefined') {
+    throw new Error('PDF.js can only be loaded in a browser environment.');
+  }
+  if (!cachedPdfjsLib) {
+    const lib = await import('pdfjs-dist');
+    lib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    cachedPdfjsLib = lib;
+  }
+  return cachedPdfjsLib;
 }
 
 export interface LoadedPDF {
-  pdfDoc: pdfjsLib.PDFDocumentProxy;
+  pdfDoc: PDFDocumentProxy;
   pageCount: number;
   pages: PageInfo[];
   extractedFonts: Record<string, ExtractedFontInfo>;
@@ -42,7 +54,9 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
     throw new Error('PDF file is empty (0 bytes).');
   }
 
-  const loadingTask = pdfjsLib.getDocument({
+  const pdfjs = await getPdfjsLib();
+
+  const loadingTask = pdfjs.getDocument({
     data: uint8Data,
     cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
     cMapPacked: true,
@@ -50,7 +64,7 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
     fontExtraProperties: true,
   });
 
-  let pdfDoc: pdfjsLib.PDFDocumentProxy;
+  let pdfDoc: PDFDocumentProxy;
   try {
     pdfDoc = await loadingTask.promise;
   } catch (err: any) {
@@ -240,12 +254,12 @@ export interface RenderTaskHandle {
  * Renders a PDF page to an HTML5 canvas at high resolution with cancellation support
  */
 export function renderPageToCanvas(
-  pdfDoc: pdfjsLib.PDFDocumentProxy,
+  pdfDoc: PDFDocumentProxy,
   pageNumber: number,
   canvas: HTMLCanvasElement,
   scale: number = 2.0
 ): RenderTaskHandle {
-  let renderTask: pdfjsLib.RenderTask | null = null;
+  let renderTask: RenderTask | null = null;
   let isCancelled = false;
 
   const promise = (async () => {
@@ -320,7 +334,7 @@ export function renderPageToCanvas(
  * Generates a thumbnail image data URL for a page
  */
 export async function generatePageThumbnail(
-  pdfDoc: pdfjsLib.PDFDocumentProxy,
+  pdfDoc: PDFDocumentProxy,
   pageNumber: number,
   thumbnailWidth: number = 180
 ): Promise<string> {

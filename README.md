@@ -1,12 +1,12 @@
 # PDFly — AI-Powered Next-Gen PDF Editor & Studio 🚀
 
-**PDFly** is a high-performance Next.js + TypeScript PDF editor and document intelligence workspace powered by **Anthropic Claude AI (`claude-sonnet-4-6` / `claude-3-5-sonnet`)**. It combines 100% private client-side vector editing, automatic font matching, multi-page organizing, and secure server-side AI intelligence.
+**PDFly** is a high-performance Next.js + TypeScript PDF editor and document intelligence workspace powered by **Google Gemini AI** (with **Anthropic Claude AI** fallback). It combines 100% private client-side vector editing, automatic font matching, multi-page organizing, and secure server-side AI intelligence.
 
 ---
 
-## ✨ AI-Powered Features (Anthropic Claude)
+## ✨ AI-Powered Features (Google Gemini & Anthropic Claude)
 
-PDFly integrates Anthropic's Claude API through secure server-side Next.js route handlers (`/api/ai/*`) where API keys remain strictly confidential on the server and are never exposed to client browsers.
+PDFly integrates Google Gemini API (primary) and Anthropic Claude API (fallback) through secure server-side Next.js route handlers (`/api/ai/*`) where API keys remain strictly confidential on the server and are never exposed to client browsers.
 
 ### 1. 💬 Chat with Your PDF (`POST /api/ai/chat`)
 - Slide-out AI assistant drawer to ask questions about your document's contents.
@@ -48,10 +48,10 @@ PDFly integrates Anthropic's Claude API through secure server-side Next.js route
 
 ## 🔒 Security, Robustness & Retry Logic
 
-- **Anthropic Claude Exclusive:** All AI calls communicate directly with `https://api.anthropic.com/v1/messages` using `claude-sonnet-4-6` (with `claude-3-5-sonnet-20241022` fallback).
-- **Zero Key Leakage:** `ANTHROPIC_API_KEY` is loaded strictly on the server in Next.js route handlers. No API key is sent to or stored in the browser.
-- **Exponential Backoff Retries:** Automatically performs up to 3 retries with exponential backoff on HTTP 429 (Rate limit), 503 (Service unavailable), 529 (Overloaded), and network failures so temporary traffic spikes do not fail user requests.
-- **User-Friendly Error Handling:** If all retries fail, clean and reassuring messages are surfaced in the UI (*"The AI assistant is temporarily busy. Please try again in a moment."*) rather than raw unformatted API stack traces.
+- **Multi-Engine Server-Side AI:** Powered primarily by Google Gemini (`gemini-flash-latest`, with automatic fallbacks to `gemini-3.5-flash`, `gemini-3.5-flash-lite`, and `gemini-pro-latest`) and Anthropic Claude (`claude-sonnet-4-6` / `claude-3-5-sonnet-20241022`) as fallback.
+- **Zero Key Leakage:** API keys are loaded strictly on the server in Next.js route handlers. No API key is ever sent to or stored in the browser.
+- **Exponential Backoff Retries:** Automatically performs up to 3 retries with exponential backoff on HTTP 429 (Rate limit), 503 (High demand / Service unavailable), and network timeouts.
+- **User-Friendly Error Handling:** If all retries fail, clean and reassuring messages are surfaced in the UI (*"The AI assistant is busy right now. Please try again in a moment."*) rather than raw unformatted API stack traces.
 - **In-Memory Rate Limiting:** Built-in sliding rate limiters protect routes from client-side flooding.
 - **Context Guardrails:** Safe text chunking prevents payload overflows and handles documents of any page length.
 
@@ -64,13 +64,18 @@ PDFly integrates Anthropic's Claude API through secure server-side Next.js route
 cp .env.example .env.local
 ```
 
-2. Add your Anthropic API Key in `.env.local`:
+2. Configure your AI API key in `.env.local`:
 ```env
+# Primary (Recommended): Google Gemini API Key
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-flash-latest
+
+# Fallback / Alternative: Anthropic Claude API Key
 ANTHROPIC_API_KEY=sk-ant-api03-your-actual-api-key-here
 ANTHROPIC_MODEL=claude-sonnet-4-6
 ```
 
-> **Note:** If `claude-sonnet-4-6` is not enabled on your Anthropic account tier, PDFly will automatically fallback to `claude-3-5-sonnet-20241022`.
+> **Note:** `GEMINI_API_KEY` takes priority. If not provided or empty, PDFly automatically falls back to `ANTHROPIC_API_KEY`.
 
 ---
 

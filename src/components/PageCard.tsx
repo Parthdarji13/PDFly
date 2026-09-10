@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import {
   PageInfo,
   EditorElement,
@@ -21,7 +21,7 @@ import { sampleCanvasColor } from '../lib/pdf/fontMatcher';
 interface PageCardProps {
   page: PageInfo;
   pageIndex: number;
-  pdfDocProxy: pdfjsLib.PDFDocumentProxy | null;
+  pdfDocProxy: PDFDocumentProxy | null;
   state: AppState;
   onUpdateState: (updater: (prev: AppState) => AppState) => void;
   onAddElement: (element: EditorElement, actionDesc?: string) => void;

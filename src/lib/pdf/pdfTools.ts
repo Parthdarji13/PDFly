@@ -1,5 +1,5 @@
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
-import * as pdfjsLib from 'pdfjs-dist';
+import { getPdfjsLib } from './pdfEngine';
 
 export interface WatermarkOptions {
   text: string;
@@ -133,8 +133,9 @@ export async function pdfToImages(
     throw new Error('The selected PDF file is empty or invalid.');
   }
 
+  const pdfjs = await getPdfjsLib();
   const fileBytes = await file.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({
+  const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(fileBytes),
     cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
     cMapPacked: true,

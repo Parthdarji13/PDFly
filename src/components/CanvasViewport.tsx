@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { PageCard } from './PageCard';
 import { AppState } from '../lib/state/store';
 import { EditorElement } from '../lib/types';
 
 interface CanvasViewportProps {
   state: AppState;
-  pdfDocProxy: pdfjsLib.PDFDocumentProxy | null;
+  pdfDocProxy: PDFDocumentProxy | null;
   onUpdateState: (updater: (prev: AppState) => AppState) => void;
   onAddElement: (element: EditorElement, actionDesc?: string) => void;
   onUpdateElement: (id: string, updates: Partial<EditorElement>) => void;
