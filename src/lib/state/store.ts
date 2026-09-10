@@ -98,7 +98,7 @@ export const initialAppState: AppState = {
   },
   zoom: 1.0,
   sidebarTab: 'pages',
-  isSidebarOpen: true,
+  isSidebarOpen: false,
   theme: 'dark',
   isSignatureModalOpen: false,
   isOrganizerModalOpen: false,

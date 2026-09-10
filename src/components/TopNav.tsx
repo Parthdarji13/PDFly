@@ -169,11 +169,20 @@ export const TopNav: React.FC<TopNavProps> = ({
         <div className="nav-divider" />
 
         {/* Page Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)', padding: '0 4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '12px', color: 'var(--text-secondary)', padding: '0 4px' }}>
+          <button
+            className="nav-btn"
+            style={{ width: '22px', height: '22px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold' }}
+            disabled={state.activePageIndex <= 0}
+            onClick={() => onUpdateState((prev) => ({ ...prev, activePageIndex: Math.max(0, prev.activePageIndex - 1) }))}
+            title="Previous Page"
+          >
+            ‹
+          </button>
           <span className="hide-on-mobile">Page</span>
           <input
             type="number"
-            style={{ width: '32px', textAlign: 'center', padding: '2px 0', fontSize: '12px', fontWeight: '600' }}
+            style={{ width: '32px', textAlign: 'center', padding: '2px 0', fontSize: '12px', fontWeight: '600', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
             min={1}
             max={Math.max(1, state.documentState.pageCount)}
             value={state.activePageIndex + 1}
@@ -185,6 +194,15 @@ export const TopNav: React.FC<TopNavProps> = ({
             }}
           />
           <span>/ {state.documentState.pageCount}</span>
+          <button
+            className="nav-btn"
+            style={{ width: '22px', height: '22px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold' }}
+            disabled={state.activePageIndex >= state.documentState.pageCount - 1}
+            onClick={() => onUpdateState((prev) => ({ ...prev, activePageIndex: Math.min(prev.documentState.pageCount - 1, prev.activePageIndex + 1) }))}
+            title="Next Page"
+          >
+            ›
+          </button>
         </div>
       </div>
 

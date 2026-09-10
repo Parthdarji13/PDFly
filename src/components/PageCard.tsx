@@ -71,6 +71,13 @@ export const PageCard: React.FC<PageCardProps> = ({
     };
   }, [pdfDocProxy, page.pageNumber, page.rotation]);
 
+  // Smoothly scroll active page into viewport when selected
+  useEffect(() => {
+    if (isActivePage && containerRef.current && state.documentState.pageCount > 1) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [isActivePage, state.documentState.pageCount]);
+
   // Convert client mouse or touch coordinates to PDF point coordinates
   const getPdfCoordinates = (e: React.MouseEvent | React.TouchEvent): Point => {
     if (!containerRef.current) return { x: 0, y: 0 };
@@ -409,7 +416,7 @@ export const PageCard: React.FC<PageCardProps> = ({
       }}
       onTouchEnd={handleMouseUp}
     >
-      <div className="page-badge">Page {pageIndex + 1}</div>
+      <div className="page-badge">Page {pageIndex + 1} of {state.documentState.pageCount}</div>
 
       {/* PDF Background Canvas */}
       <canvas
