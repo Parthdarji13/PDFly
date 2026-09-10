@@ -383,7 +383,37 @@
 }
 
 .inspector-select.font-family-select {
-  max-width: 130px;
+  max-width: 175px;
+}
+
+.font-badge-group {
+  margin-right: 2px;
+}
+
+.font-quality-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.font-quality-badge.badge-original {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.12);
+}
+
+.font-quality-badge.badge-match {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
 .inspector-select:hover {

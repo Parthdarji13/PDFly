@@ -136,7 +136,7 @@ export default function PDFEditorPage() {
           return;
         }
 
-        const { pdfDoc, pageCount, pages } = await loadPDFDocument(bytes);
+        const { pdfDoc, pageCount, pages, extractedFonts } = await loadPDFDocument(bytes);
         setPdfDocProxy(pdfDoc);
 
         // Generate thumbnails asynchronously
@@ -160,6 +160,7 @@ export default function PDFEditorPage() {
             pages: pagesWithThumbs,
             elements: [],
             rawPdfBytes: bytes,
+            extractedFonts: extractedFonts || {},
           },
           activePageIndex: 0,
           selectedElementId: null,

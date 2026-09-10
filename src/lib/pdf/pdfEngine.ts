@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
-import { PageInfo, DetectedTextItem } from '../types';
-import { matchPdfFont, calculateFontSizeFromTransform } from './fontMatcher';
+import { PageInfo, DetectedTextItem, ExtractedFontInfo } from '../types';
+import { matchPdfFont, calculateFontSizeFromTransform, cleanPdfFontName } from './fontMatcher';
+import { registerWebFont } from './fontRegistry';
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
@@ -11,6 +12,24 @@ export interface LoadedPDF {
   pdfDoc: pdfjsLib.PDFDocumentProxy;
   pageCount: number;
   pages: PageInfo[];
+  extractedFonts: Record<string, ExtractedFontInfo>;
+}
+
+/**
+ * Safely retrieves an object from PDF.js commonObjs
+ */
+function getCommonObj(commonObjs: any, id: string): Promise<any> {
+  return new Promise((resolve) => {
+    try {
+      if (!commonObjs || !id) return resolve(null);
+      if (typeof commonObjs.has === 'function' && !commonObjs.has(id)) {
+        return resolve(null);
+      }
+      commonObjs.get(id, (obj: any) => resolve(obj));
+    } catch {
+      resolve(null);
+    }
+  });
 }
 
 /**
@@ -28,6 +47,7 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
     cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
     cMapPacked: true,
     standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/standard_fonts/',
+    fontExtraProperties: true,
   });
 
   let pdfDoc: pdfjsLib.PDFDocumentProxy;
@@ -45,13 +65,90 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
 
   const pageCount = pdfDoc.numPages;
   const pages: PageInfo[] = [];
+  const extractedFonts: Record<string, ExtractedFontInfo> = {};
 
   for (let i = 1; i <= pageCount; i++) {
     const page = await pdfDoc.getPage(i);
     const viewport = page.getViewport({ scale: 1.0 });
 
+    // Trigger operator list execution so font objects are compiled into commonObjs
+    try {
+      await page.getOperatorList();
+    } catch (opErr) {
+      console.warn(`[pdfEngine] Warning: getOperatorList failed on page ${i}:`, opErr);
+    }
+
     const textContent = await page.getTextContent();
     const textItems: DetectedTextItem[] = [];
+
+    // First pass: extract all fonts used on this page
+    for (const item of textContent.items as any[]) {
+      const fontId = item.fontName;
+      if (fontId && !extractedFonts[fontId]) {
+        try {
+          const fontObj = await getCommonObj(page.commonObjs, fontId);
+          const rawName = fontObj?.name || fontObj?.loadedName || fontId;
+          const cleanName = cleanPdfFontName(rawName);
+          const hasData = Boolean(fontObj?.data && fontObj.data.length > 0);
+          const fontBytes = hasData ? new Uint8Array(fontObj.data) : null;
+
+          const matchedFallback = matchPdfFont(rawName, undefined, {
+            flags: fontObj?.flags,
+            ascent: fontObj?.ascent,
+            descent: fontObj?.descent,
+            isBold: fontObj?.bold,
+            isItalic: fontObj?.italic,
+            isMonospace: fontObj?.isMonospace,
+            isSerifFont: fontObj?.isSerifFont,
+          });
+
+          // Generate unique CSS family name for FontFace registration
+          const sanitizedId = fontId.replace(/[^a-zA-Z0-9_-]/g, '_');
+          const cssFamily = hasData ? `PDF_Font_${sanitizedId}` : matchedFallback.cssFontFamily;
+
+          // Format clean human family name (e.g. "TimesNewRomanPSMT" -> "Times New Roman")
+          let humanFamily = cleanName
+            .replace(/PSMT|MT|PS|MS/gi, '')
+            .replace(/[-_]/g, ' ')
+            .trim();
+          if (!humanFamily || humanFamily.length === 0) {
+            humanFamily = matchedFallback.fontFamily;
+          }
+
+          const fontInfo: ExtractedFontInfo = {
+            id: fontId,
+            name: rawName,
+            cleanName,
+            family: humanFamily,
+            cssFamily,
+            isEmbedded: hasData,
+            data: fontBytes,
+            mimetype: fontObj?.mimetype || (hasData ? 'font/opentype' : undefined),
+            flags: fontObj?.flags,
+            ascent: fontObj?.ascent,
+            descent: fontObj?.descent,
+            isBold: matchedFallback.isBold,
+            isItalic: matchedFallback.isItalic,
+            isMonospace: matchedFallback.category === 'monospace',
+            isSerif: matchedFallback.category === 'serif',
+            category: matchedFallback.category,
+            fallbackPdfKey: matchedFallback.pdfFontKey,
+            fallbackCssFamily: matchedFallback.cssFontFamily,
+          };
+
+          extractedFonts[fontId] = fontInfo;
+
+          // Register in browser document.fonts if embedded font bytes are available
+          if (hasData) {
+            registerWebFont(fontInfo).catch((err) => {
+              console.warn(`[pdfEngine] Failed to register web font for ${rawName}:`, err);
+            });
+          }
+        } catch (fontErr) {
+          console.warn(`[pdfEngine] Error extracting font ${fontId}:`, fontErr);
+        }
+      }
+    }
 
     // Extract text items with accurate typography and bounding boxes
     textContent.items.forEach((item: any, idx: number) => {
@@ -63,13 +160,33 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
       const itemWidth = item.width || 0;
       const itemHeight = item.height || 0;
 
+      const fontObjInfo = extractedFonts[item.fontName];
+      const isEmbedded = Boolean(fontObjInfo?.isEmbedded);
+
       // Calculate font info
-      const fontInfo = matchPdfFont(item.fontName, transform);
+      const fontInfo = matchPdfFont(item.fontName, transform, {
+        flags: fontObjInfo?.flags,
+        ascent: fontObjInfo?.ascent,
+        descent: fontObjInfo?.descent,
+        isBold: fontObjInfo?.isBold,
+        isItalic: fontObjInfo?.isItalic,
+        isMonospace: fontObjInfo?.isMonospace,
+        isSerifFont: fontObjInfo?.isSerif,
+      });
+
       const fontSize = calculateFontSizeFromTransform(transform, itemHeight);
 
       // Convert PDF coordinate system (origin bottom-left) to visual top-left
       const visualY = viewport.height - ty - fontSize;
       const visualX = tx;
+
+      const displayFontFamily = isEmbedded
+        ? fontObjInfo!.cssFamily
+        : fontObjInfo?.fallbackCssFamily || fontInfo.fontFamily;
+
+      const pdfFontKey = isEmbedded
+        ? item.fontName
+        : fontObjInfo?.fallbackPdfKey || fontInfo.pdfFontKey;
 
       textItems.push({
         id: `page-${i - 1}-text-${idx}`,
@@ -82,16 +199,20 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
         width: itemWidth > 0 ? itemWidth : item.str.length * (fontSize * 0.6),
         height: Math.max(fontSize, itemHeight),
         fontName: item.fontName || '',
-        fontFamily: fontInfo.fontFamily,
-        pdfFontKey: fontInfo.pdfFontKey,
+        cleanFontName: fontObjInfo?.cleanName || cleanPdfFontName(item.fontName || ''),
+        fontFamily: displayFontFamily,
+        pdfFontKey: pdfFontKey,
         fontSize: fontSize,
-        fontWeight: fontInfo.fontWeight,
-        fontStyle: fontInfo.fontStyle,
+        fontWeight: fontObjInfo?.isBold ? 'bold' : fontInfo.fontWeight,
+        fontStyle: fontObjInfo?.isItalic ? 'italic' : fontInfo.fontStyle,
         color: '#000000',
         backgroundColor: '#ffffff',
         transform: transform,
         dir: item.dir || 'ltr',
         hasEOL: !!item.hasEOL,
+        isEmbeddedFont: isEmbedded,
+        fontMatchQuality: isEmbedded ? 'original' : 'closest-match',
+        embeddedFontId: isEmbedded ? item.fontName : undefined,
       });
     });
 
@@ -107,7 +228,7 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
     });
   }
 
-  return { pdfDoc, pageCount, pages };
+  return { pdfDoc, pageCount, pages, extractedFonts };
 }
 
 export interface RenderTaskHandle {

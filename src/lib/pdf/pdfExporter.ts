@@ -14,6 +14,7 @@ import {
   ImageElement,
   SignatureElement,
   RedactElement,
+  ExtractedFontInfo,
 } from '../types';
 import { getOrEmbedFont } from './fontRegistry';
 
@@ -96,7 +97,14 @@ export async function exportModifiedPDF(documentState: DocumentState): Promise<U
       try {
         switch (el.type) {
           case 'text':
-            await renderTextElement(pdfDoc, page, el as TextElement, pageHeight, fontCache);
+            await renderTextElement(
+              pdfDoc,
+              page,
+              el as TextElement,
+              pageHeight,
+              fontCache,
+              documentState.extractedFonts
+            );
             break;
           case 'draw':
             await renderDrawElement(page, el as DrawElement, pageHeight);
@@ -131,7 +139,8 @@ async function renderTextElement(
   page: PDFPage,
   el: TextElement,
   pageHeight: number,
-  fontCache: Map<string, PDFFont>
+  fontCache: Map<string, PDFFont>,
+  extractedFonts?: Record<string, ExtractedFontInfo>
 ) {
   // If this text replaced an original text item, draw a concealment background patch over the original text
   if (el.isOriginalEdit && el.originalBBox) {
@@ -163,29 +172,49 @@ async function renderTextElement(
     });
   }
 
-  // Embed the matching font
-  let fontKey = el.pdfFontKey || 'Helvetica';
-  if (el.fontWeight === 'bold' && !fontKey.includes('Bold')) {
-    fontKey = fontKey.includes('Times')
-      ? el.fontStyle === 'italic'
-        ? 'Times-BoldItalic'
-        : 'Times-Bold'
-      : fontKey.includes('Courier')
-      ? el.fontStyle === 'italic'
-        ? 'Courier-BoldOblique'
-        : 'Courier-Bold'
-      : el.fontStyle === 'italic'
-      ? 'Helvetica-BoldOblique'
-      : 'Helvetica-Bold';
-  } else if (el.fontStyle === 'italic' && !fontKey.includes('Italic') && !fontKey.includes('Oblique')) {
-    fontKey = fontKey.includes('Times')
-      ? 'Times-Italic'
-      : fontKey.includes('Courier')
-      ? 'Courier-Oblique'
-      : 'Helvetica-Oblique';
+  // Determine fontKey (check embedded font id first, then pdfFontKey)
+  let fontKey = el.embeddedFontId || el.pdfFontKey || 'Helvetica';
+  const isExtracted =
+    extractedFonts &&
+    (extractedFonts[fontKey] ||
+      Object.values(extractedFonts).some(
+        (f) => f.id === fontKey || f.cssFamily === fontKey || f.name === fontKey
+      ));
+
+  if (!isExtracted) {
+    if (el.fontWeight === 'bold' && !fontKey.includes('Bold')) {
+      fontKey = fontKey.includes('Times')
+        ? el.fontStyle === 'italic'
+          ? 'Times-BoldItalic'
+          : 'Times-Bold'
+        : fontKey.includes('Courier')
+        ? el.fontStyle === 'italic'
+          ? 'Courier-BoldOblique'
+          : 'Courier-Bold'
+        : el.fontStyle === 'italic'
+        ? 'Helvetica-BoldOblique'
+        : 'Helvetica-Bold';
+    } else if (
+      el.fontStyle === 'italic' &&
+      !fontKey.includes('Italic') &&
+      !fontKey.includes('Oblique')
+    ) {
+      fontKey = fontKey.includes('Times')
+        ? 'Times-Italic'
+        : fontKey.includes('Courier')
+        ? 'Courier-Oblique'
+        : 'Helvetica-Oblique';
+    }
   }
 
-  const font = await getOrEmbedFont(pdfDoc, fontKey, fontCache);
+  let font: PDFFont;
+  try {
+    font = await getOrEmbedFont(pdfDoc, fontKey, fontCache, extractedFonts);
+  } catch (err) {
+    console.warn(`[pdfExporter] Failed to get font ${fontKey}, falling back to Helvetica:`, err);
+    font = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
+  }
+
   const textColor = parseColorToRgb(el.color || '#000000');
   const fontSize = Math.max(6, el.fontSize || 12);
   const textLines = (el.text || '').split('\n');
@@ -200,7 +229,21 @@ async function renderTextElement(
       continue;
     }
 
-    const textWidth = font.widthOfTextAtSize(line, fontSize);
+    let activeFont = font;
+    let textWidth = 0;
+
+    try {
+      textWidth = activeFont.widthOfTextAtSize(line, fontSize);
+    } catch {
+      // If fontkit subset fails to measure unsupported glyphs, fall back to Helvetica
+      try {
+        activeFont = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
+        textWidth = activeFont.widthOfTextAtSize(line, fontSize);
+      } catch {
+        textWidth = line.length * (fontSize * 0.55);
+      }
+    }
+
     let drawX = el.x;
 
     if (el.align === 'center') {
@@ -212,14 +255,31 @@ async function renderTextElement(
     // PDF baseline calculation: visual Y is from top, PDF coordinate is from bottom
     const drawY = pageHeight - currentVisualY - fontSize;
 
-    page.drawText(line, {
-      x: drawX,
-      y: drawY,
-      size: fontSize,
-      font: font,
-      color: textColor,
-      opacity: el.opacity ?? 1,
-    });
+    try {
+      page.drawText(line, {
+        x: drawX,
+        y: drawY,
+        size: fontSize,
+        font: activeFont,
+        color: textColor,
+        opacity: el.opacity ?? 1,
+      });
+    } catch (drawErr) {
+      console.warn(`[pdfExporter] drawText failed with active font, attempting fallback:`, drawErr);
+      try {
+        const fallbackFont = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
+        page.drawText(line, {
+          x: drawX,
+          y: drawY,
+          size: fontSize,
+          font: fallbackFont,
+          color: textColor,
+          opacity: el.opacity ?? 1,
+        });
+      } catch (fbErr) {
+        console.error(`[pdfExporter] Final drawText fallback error:`, fbErr);
+      }
+    }
 
     // Handle Underline
     if (el.underline) {

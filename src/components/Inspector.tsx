@@ -189,6 +189,27 @@ export const Inspector: React.FC<InspectorProps> = ({
         {/* ---------------- Text Controls ---------------- */}
         {showTextControls && (
           <>
+            {/* Font Quality Badge for Selected Text */}
+            {selectedEl?.type === 'text' && (
+              <div className="inspector-group font-badge-group">
+                {(selectedEl as TextElement).isEmbeddedFont ? (
+                  <span
+                    className="font-quality-badge badge-original"
+                    title="Rendered and exported using the document's original embedded font program."
+                  >
+                    ⭐ Original Font
+                  </span>
+                ) : (
+                  <span
+                    className="font-quality-badge badge-match"
+                    title="Font matched to standard typography metrics and style descriptors."
+                  >
+                    ⚡ Closest Match
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Font Family Selector */}
             <div className="inspector-group">
               <span className="inspector-label">Font:</span>
@@ -196,19 +217,59 @@ export const Inspector: React.FC<InspectorProps> = ({
                 className="inspector-select font-family-select"
                 value={currentFontFamily}
                 onChange={(e) => {
-                  const selected = AVAILABLE_FONTS.find(
-                    (f) => f.name === e.target.value || f.id === e.target.value
+                  const val = e.target.value;
+                  const extracted = Object.values(
+                    state.documentState.extractedFonts || {}
+                  ).find(
+                    (f) =>
+                      f.cssFamily === val ||
+                      f.name === val ||
+                      f.id === val ||
+                      f.cleanName === val
                   );
-                  const fam = selected ? selected.name : e.target.value;
-                  const pKey = selected ? selected.pdfKey : 'Helvetica';
-                  updateSelectedText({ fontFamily: fam, pdfFontKey: pKey });
+
+                  if (extracted) {
+                    updateSelectedText({
+                      fontFamily: extracted.cssFamily,
+                      pdfFontKey: extracted.id,
+                      isEmbeddedFont: extracted.isEmbedded,
+                      embeddedFontId: extracted.id,
+                      fontMatchQuality: extracted.isEmbedded ? 'original' : 'closest-match',
+                    });
+                  } else {
+                    const selected = AVAILABLE_FONTS.find(
+                      (f) => f.name === val || f.id === val
+                    );
+                    const fam = selected ? selected.name : val;
+                    const pKey = selected ? selected.pdfKey : 'Helvetica';
+                    updateSelectedText({
+                      fontFamily: fam,
+                      pdfFontKey: pKey,
+                      isEmbeddedFont: false,
+                      embeddedFontId: undefined,
+                      fontMatchQuality: 'closest-match',
+                    });
+                  }
                 }}
               >
-                {AVAILABLE_FONTS.map((font) => (
-                  <option key={font.id} value={font.name}>
-                    {font.name}
-                  </option>
-                ))}
+                {state.documentState.extractedFonts &&
+                  Object.keys(state.documentState.extractedFonts).length > 0 && (
+                    <optgroup label="⭐ Document Embedded Fonts">
+                      {Object.values(state.documentState.extractedFonts).map((font) => (
+                        <option key={font.id} value={font.cssFamily}>
+                          ⭐ {font.cleanName || font.name} (
+                          {font.isEmbedded ? 'Embedded' : 'Standard'})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                <optgroup label="Standard / Web Fonts">
+                  {AVAILABLE_FONTS.map((font) => (
+                    <option key={font.id} value={font.name}>
+                      {font.name}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 

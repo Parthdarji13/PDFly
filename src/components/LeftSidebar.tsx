@@ -332,6 +332,126 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </div>
             </div>
 
+            {/* Document Fonts Section */}
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: 'var(--bg-tertiary)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '700' }}>Detected Typography</h4>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                    color: 'var(--accent-primary)',
+                    fontWeight: '600',
+                  }}
+                >
+                  {Object.keys(state.documentState.extractedFonts || {}).length} Fonts
+                </span>
+              </div>
+
+              {Object.keys(state.documentState.extractedFonts || {}).length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
+                  No custom fonts detected in this document.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                  {Object.values(state.documentState.extractedFonts).map((font) => (
+                    <div
+                      key={font.id}
+                      style={{
+                        padding: '8px',
+                        backgroundColor: 'var(--bg-secondary)',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border-subtle)',
+                        fontSize: '11px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '3px',
+                        }}
+                      >
+                        <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                          {font.cleanName || font.name}
+                        </span>
+                        {font.isEmbedded ? (
+                          <span
+                            style={{
+                              fontSize: '9.5px',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                              color: '#10b981',
+                              fontWeight: '600',
+                            }}
+                          >
+                            ⭐ Original ({Math.round((font.data?.length || 0) / 1024)} KB)
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '9.5px',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                              color: '#f59e0b',
+                              fontWeight: '600',
+                            }}
+                          >
+                            ⚡ Closest Match
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: '10px',
+                          display: 'flex',
+                          gap: '8px',
+                        }}
+                      >
+                        <span>Category: {font.category}</span>
+                        {font.isBold && <span>Bold</span>}
+                        {font.isItalic && <span>Italic</span>}
+                      </div>
+
+                      {/* Live Font Sample */}
+                      <div
+                        style={{
+                          marginTop: '4px',
+                          padding: '4px 6px',
+                          backgroundColor: 'var(--bg-tertiary)',
+                          borderRadius: '4px',
+                          fontFamily: font.cssFamily,
+                          fontSize: '12px',
+                          color: 'var(--text-primary)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Sphinx of black quartz, judge my vow. 12345
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div
               style={{
                 padding: '12px',
@@ -340,12 +460,21 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 border: '1px solid rgba(99, 102, 241, 0.2)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)', fontWeight: '600', marginBottom: '4px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: 'var(--accent-primary)',
+                  fontWeight: '600',
+                  marginBottom: '4px',
+                }}
+              >
                 <CheckCircle2 size={15} />
-                <span>Font Matching Active</span>
+                <span>Original Font Engine Active</span>
               </div>
               <p style={{ color: 'var(--text-secondary)', fontSize: '11px', lineHeight: '1.4' }}>
-                When clicking on any original text in the PDF in <strong>Edit Original Text</strong> mode, typography attributes (font family, size, weight, and color) are automatically extracted and replicated seamlessly.
+                Embedded TrueType/OpenType font programs are extracted and registered directly into the browser&apos;s <code>FontFace</code> subsystem. In-place edits render with exact typography and export with embedded font programs.
               </p>
             </div>
           </div>

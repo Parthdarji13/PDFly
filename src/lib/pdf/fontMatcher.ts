@@ -1,3 +1,13 @@
+export interface FontDescriptors {
+  flags?: number;
+  ascent?: number;
+  descent?: number;
+  isBold?: boolean;
+  isItalic?: boolean;
+  isMonospace?: boolean;
+  isSerifFont?: boolean;
+}
+
 export interface MatchedFontInfo {
   fontFamily: string;
   cssFontFamily: string;
@@ -7,6 +17,47 @@ export interface MatchedFontInfo {
   fontWeight: 'normal' | 'bold' | '500' | '600' | '700';
   fontStyle: 'normal' | 'italic' | 'oblique';
   category: 'sans-serif' | 'serif' | 'monospace' | 'script' | 'symbol';
+}
+
+/**
+ * Strips PDF subset prefix (e.g. "ABCDEF+Roboto-Bold" -> "Roboto-Bold")
+ */
+export function cleanPdfFontName(rawName: string): string {
+  if (!rawName) return 'Helvetica';
+  return rawName.replace(/^[A-Z0-9]{6}\+/i, '').replace(/,/g, '-');
+}
+
+/**
+ * Parses PDF FontDescriptor /Flags bitmask
+ * ISO 32000-1 Table 123 - Font descriptor flags:
+ * Bit 1 (1 << 0): FixedPitch
+ * Bit 2 (1 << 1): Serif
+ * Bit 3 (1 << 2): Symbolic
+ * Bit 4 (1 << 3): Script
+ * Bit 6 (1 << 5): Nonsymbolic
+ * Bit 7 (1 << 6): Italic
+ * Bit 19 (1 << 18): ForceBold
+ */
+export function parseFontFlags(flags?: number) {
+  if (typeof flags !== 'number') {
+    return {
+      isFixedPitch: false,
+      isSerif: false,
+      isSymbolic: false,
+      isScript: false,
+      isItalic: false,
+      isForceBold: false,
+    };
+  }
+
+  return {
+    isFixedPitch: Boolean(flags & (1 << 0)),
+    isSerif: Boolean(flags & (1 << 1)),
+    isSymbolic: Boolean(flags & (1 << 2)),
+    isScript: Boolean(flags & (1 << 3)),
+    isItalic: Boolean(flags & (1 << 6)),
+    isForceBold: Boolean(flags & (1 << 18)),
+  };
 }
 
 /**
@@ -26,12 +77,19 @@ export const AVAILABLE_FONTS = [
 ];
 
 /**
- * Detects font style, family and matching PDF font from raw PDF font name
+ * Detects font style, family and matching PDF font from raw PDF font name and descriptors
  */
-export function matchPdfFont(rawFontName: string, fontMatrix?: number[]): MatchedFontInfo {
-  const cleanName = (rawFontName || '').toLowerCase().replace(/^[a-z0-9]+\+/i, ''); // Strip subset prefix like 'ABCDEF+'
+export function matchPdfFont(
+  rawFontName: string,
+  fontMatrix?: number[],
+  descriptors?: FontDescriptors
+): MatchedFontInfo {
+  const cleanName = cleanPdfFontName(rawFontName || '').toLowerCase();
+  const flagInfo = parseFontFlags(descriptors?.flags);
 
   const isBold =
+    Boolean(descriptors?.isBold) ||
+    flagInfo.isForceBold ||
     cleanName.includes('bold') ||
     cleanName.includes('black') ||
     cleanName.includes('heavy') ||
@@ -44,6 +102,8 @@ export function matchPdfFont(rawFontName: string, fontMatrix?: number[]): Matche
     cleanName.includes('900');
 
   const isItalic =
+    Boolean(descriptors?.isItalic) ||
+    flagInfo.isItalic ||
     cleanName.includes('italic') ||
     cleanName.includes('oblique') ||
     cleanName.includes('slanted') ||
@@ -56,8 +116,10 @@ export function matchPdfFont(rawFontName: string, fontMatrix?: number[]): Matche
   let cssFontFamily = 'Helvetica, Arial, sans-serif';
   let pdfFontKey = 'Helvetica';
 
-  // Monospace detection
+  // 1. Monospace detection (flag or name)
   if (
+    flagInfo.isFixedPitch ||
+    descriptors?.isMonospace ||
     cleanName.includes('courier') ||
     cleanName.includes('mono') ||
     cleanName.includes('consolas') ||
@@ -77,8 +139,38 @@ export function matchPdfFont(rawFontName: string, fontMatrix?: number[]): Matche
       ? 'Courier-Oblique'
       : 'Courier';
   }
-  // Serif detection
+  // 2. Script / Cursive detection
   else if (
+    flagInfo.isScript ||
+    cleanName.includes('script') ||
+    cleanName.includes('cursive') ||
+    cleanName.includes('hand') ||
+    cleanName.includes('brush') ||
+    cleanName.includes('vibes') ||
+    cleanName.includes('calligraph')
+  ) {
+    category = 'script';
+    fontFamily = 'Great Vibes';
+    cssFontFamily = '"Great Vibes", cursive';
+    pdfFontKey = isItalic ? 'Times-Italic' : 'Times-Roman';
+  }
+  // 3. Symbol / Dingbats detection
+  else if (
+    flagInfo.isSymbolic &&
+    (cleanName.includes('symbol') ||
+      cleanName.includes('dingbat') ||
+      cleanName.includes('wingding') ||
+      cleanName.includes('zapf'))
+  ) {
+    category = 'symbol';
+    fontFamily = 'Symbol';
+    cssFontFamily = 'Symbol, sans-serif';
+    pdfFontKey = cleanName.includes('zapf') ? 'ZapfDingbats' : 'Symbol';
+  }
+  // 4. Serif detection (flag, descriptor or name)
+  else if (
+    flagInfo.isSerif ||
+    descriptors?.isSerifFont ||
     cleanName.includes('times') ||
     cleanName.includes('roman') ||
     cleanName.includes('georgia') ||
@@ -104,32 +196,7 @@ export function matchPdfFont(rawFontName: string, fontMatrix?: number[]): Matche
       ? 'Times-Italic'
       : 'Times-Roman';
   }
-  // Script / Cursive detection
-  else if (
-    cleanName.includes('script') ||
-    cleanName.includes('cursive') ||
-    cleanName.includes('hand') ||
-    cleanName.includes('brush') ||
-    cleanName.includes('vibes') ||
-    cleanName.includes('calligraph')
-  ) {
-    category = 'script';
-    fontFamily = 'Great Vibes';
-    cssFontFamily = '"Great Vibes", cursive';
-    pdfFontKey = isItalic ? 'Times-Italic' : 'Times-Roman';
-  }
-  // Symbol / Dingbats detection
-  else if (
-    cleanName.includes('symbol') ||
-    cleanName.includes('dingbat') ||
-    cleanName.includes('wingding')
-  ) {
-    category = 'symbol';
-    fontFamily = 'Symbol';
-    cssFontFamily = 'Symbol, sans-serif';
-    pdfFontKey = 'Symbol';
-  }
-  // Default Sans-Serif (Helvetica, Arial, Calibri, Roboto, Inter, Segoe, etc.)
+  // 5. Default Sans-Serif (Helvetica, Arial, Calibri, Roboto, Inter, Segoe, etc.)
   else {
     category = 'sans-serif';
     if (cleanName.includes('roboto')) {

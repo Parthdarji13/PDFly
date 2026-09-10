@@ -35,6 +35,27 @@ export interface BoundingBox {
   height: number;
 }
 
+export interface ExtractedFontInfo {
+  id: string;              // PDF internal font id (e.g. 'g_d0_f1')
+  name: string;            // Raw PDF font name (e.g. 'ABCDEF+Roboto-Bold')
+  cleanName: string;       // Stripped font name without subset prefix (e.g. 'Roboto-Bold')
+  family: string;          // Human friendly family name (e.g. 'Roboto')
+  cssFamily: string;       // CSS font-family name for FontFace (e.g. 'PDF_Font_g_d0_f1')
+  isEmbedded: boolean;     // True if font binary data is available
+  data: Uint8Array | null; // Raw font bytes (OpenType/TrueType)
+  mimetype?: string;       // Font mime type (e.g. 'font/opentype')
+  flags?: number;          // PDF font descriptor flags bitmask
+  ascent?: number;
+  descent?: number;
+  isBold?: boolean;
+  isItalic?: boolean;
+  isMonospace?: boolean;
+  isSerif?: boolean;
+  category: 'sans-serif' | 'serif' | 'monospace' | 'cursive' | 'display' | 'script' | 'symbol';
+  fallbackPdfKey: string;  // Standard 14 PDF font fallback key ('Helvetica', 'Times-Roman', etc.)
+  fallbackCssFamily: string; // CSS fallback font list
+}
+
 export interface DetectedTextItem {
   id: string;
   pageIndex: number;
@@ -46,7 +67,8 @@ export interface DetectedTextItem {
   width: number;
   height: number;
   fontName: string;
-  fontFamily: string; // Detected/matched font family (e.g. 'Times New Roman', 'Helvetica', 'Courier', 'Inter')
+  cleanFontName?: string;
+  fontFamily: string; // Detected/matched font family (e.g. 'PDF_Font_g_d0_f1' or 'Times New Roman')
   pdfFontKey: string; // PDF standard font key ('Helvetica', 'Times-Roman', 'Courier', 'Helvetica-Bold', etc.)
   fontSize: number;   // Point size (pt)
   fontWeight: 'normal' | 'bold' | '500' | '600' | '700';
@@ -57,6 +79,9 @@ export interface DetectedTextItem {
   dir: string;
   hasEOL: boolean;
   isEdited?: boolean;
+  isEmbeddedFont?: boolean;
+  fontMatchQuality?: 'original' | 'closest-match';
+  embeddedFontId?: string;
 }
 
 export interface BaseElement {
@@ -89,6 +114,9 @@ export interface TextElement extends BaseElement {
   isOriginalEdit?: boolean;
   originalTextId?: string;
   originalBBox?: BoundingBox;
+  isEmbeddedFont?: boolean;
+  embeddedFontId?: string;
+  fontMatchQuality?: 'original' | 'closest-match';
 }
 
 export interface DrawElement extends BaseElement {
@@ -158,4 +186,5 @@ export interface DocumentState {
   pages: PageInfo[];
   elements: EditorElement[];
   rawPdfBytes: Uint8Array | null;
+  extractedFonts: Record<string, ExtractedFontInfo>;
 }

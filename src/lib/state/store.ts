@@ -69,6 +69,7 @@ export const initialDocumentState: DocumentState = {
   pages: [],
   elements: [],
   rawPdfBytes: null,
+  extractedFonts: {},
 };
 
 export const initialAppState: AppState = {

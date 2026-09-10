@@ -142,6 +142,9 @@ export const PageCard: React.FC<PageCardProps> = ({
         width: textItem.width,
         height: textItem.height,
       },
+      isEmbeddedFont: textItem.isEmbeddedFont,
+      embeddedFontId: textItem.embeddedFontId,
+      fontMatchQuality: textItem.fontMatchQuality,
       zIndex: pageElements.length + 10,
       opacity: 1,
     };
@@ -438,7 +441,8 @@ export const PageCard: React.FC<PageCardProps> = ({
             >
               {/* Font Info Tooltip */}
               <div className="text-font-tooltip">
-                ✏️ Click to edit: {item.fontFamily} {Math.round(item.fontSize)}pt
+                {item.isEmbeddedFont ? '⭐ Original Font: ' : '⚡ Closest Match: '}
+                {item.cleanFontName || item.fontFamily} {Math.round(item.fontSize)}pt
               </div>
             </div>
           ))}
