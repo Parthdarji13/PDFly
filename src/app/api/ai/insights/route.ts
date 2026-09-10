@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callClaude, checkRateLimit, prepareDocumentContext } from '@/lib/ai/anthropic';
+import { callAI, checkRateLimit, prepareDocumentContext } from '@/lib/ai/gemini';
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
 
     const { text: contextText } = prepareDocumentContext(documentText, 60000);
 
-    const systemPrompt = `You are PDFly Document Intelligence — an AI metadata and structured data extractor powered by Claude.
+    const systemPrompt = `You are PDFly AI — an intelligent, precision document assistant and structured data extractor.
+If asked what AI model or company powers you, respond that you are the PDFly AI Assistant without naming a specific underlying model or company.
 Analyze the provided document text and extract structured key insights.
 
 You MUST respond ONLY with valid JSON in this exact structure without code markdown fences or conversational text:
@@ -51,7 +52,7 @@ You MUST respond ONLY with valid JSON in this exact structure without code markd
 
     const userPrompt = `Extract document insights and structured data from this PDF ("${fileName || 'document.pdf'}"). Document text:\n\n${contextText}`;
 
-    const result = await callClaude({
+    const result = await callAI({
       systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       maxTokens: 2048,

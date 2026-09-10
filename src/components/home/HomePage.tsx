@@ -406,13 +406,9 @@ export const HomePage: React.FC<HomePageProps> = ({
               Powerful and easy-to-use tools to handle your PDFs, all in one place.
             </p>
           </div>
-          <button className="btn-view-all-tools" onClick={() => onOpenTool('edit')}>
-            <span>View all tools</span>
-            <ArrowRight size={14} />
-          </button>
         </div>
 
-        {/* 10 Tools 5x2 Grid */}
+        {/* 10 Tools Grid */}
         <div className="tools-10-grid">
           {/* 1. Edit PDF */}
           <div className="tool-tile-card" onClick={() => onOpenTool('edit')}>
@@ -786,7 +782,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             },
             {
               q: 'How do the AI features process my document text?',
-              a: 'When you explicitly choose to use an AI feature (such as Chat with PDF, Auto-Summarize, Smart Text Assist, or Document Insights), extracted text from your active document is securely sent via server-side Next.js route handlers to Google Gemini API (or Anthropic Claude fallback) solely to generate your response. API keys remain confidential on the server, and document contents are not saved or shared.',
+              a: 'When you explicitly choose to use an AI feature (such as Chat with PDF, Auto-Summarize, Smart Text Assist, or Document Insights), extracted text from your active document is securely sent via server-side Next.js route handlers to Google Gemini API solely to generate your response. API keys remain confidential on the server, and document contents are not saved or shared.',
             },
             {
               q: 'Do I need to create an account or sign up?',

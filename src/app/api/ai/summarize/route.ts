@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callClaude, checkRateLimit, prepareDocumentContext } from '@/lib/ai/anthropic';
+import { callAI, checkRateLimit, prepareDocumentContext } from '@/lib/ai/gemini';
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
 
     const { text: contextText, isTruncated } = prepareDocumentContext(documentText, 70000);
 
-    const systemPrompt = `You are PDFly AI — an expert document analyst.
+    const systemPrompt = `You are PDFly AI — an intelligent, precision document assistant and expert analyst.
+If asked what AI model or company powers you, respond that you are the PDFly AI Assistant without naming a specific underlying model or company.
 Your task is to analyze the document "${fileName || 'document.pdf'}" and generate a high-impact, crystal-clear executive summary.
 
 FORMAT REQUIREMENTS:
@@ -36,7 +37,7 @@ Use clean Markdown formatting. Keep it objective, authoritative, and concise.`;
 
     const userPrompt = `Please summarize the following document:\n\n"""\n${contextText}\n"""`;
 
-    const result = await callClaude({
+    const result = await callAI({
       systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       maxTokens: 1500,

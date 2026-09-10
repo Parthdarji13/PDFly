@@ -218,7 +218,7 @@ export const TopNav: React.FC<TopNavProps> = ({
               gap: '5px',
             }}
             onClick={onOpenAiChat}
-            title="Chat with your PDF using Claude AI"
+            title="Chat with your PDF using AI"
           >
             <MessageSquare size={14} />
             <span className="nav-btn-text">AI Chat</span>

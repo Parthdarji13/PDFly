@@ -18,7 +18,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { DocumentState } from '../../lib/types';
-import { extractDocumentText, estimateTokens } from '../../lib/ai/textExtractor';
+import { extractDocumentText, estimateTokens, isDocumentScannedOrEmpty } from '../../lib/ai/textExtractor';
 
 export interface ChatMessage {
   id: string;
@@ -65,6 +65,7 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
   const hasDocument = documentState.pages && documentState.pages.length > 0;
   const docText = React.useMemo(() => extractDocumentText(documentState), [documentState]);
   const tokenCount = React.useMemo(() => estimateTokens(docText), [docText]);
+  const isScannedOrEmpty = React.useMemo(() => isDocumentScannedOrEmpty(documentState), [documentState]);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
@@ -273,6 +274,29 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
             </div>
           ) : messages.length === 0 ? (
             <div className="ai-welcome-container">
+              {isScannedOrEmpty && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 14px',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: '#f59e0b',
+                    fontSize: '12px',
+                    lineHeight: '1.4',
+                    marginBottom: '16px',
+                    textAlign: 'left',
+                  }}
+                >
+                  <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                  <span>
+                    This document appears to be scanned or image-based — AI text analysis may not work well yet.
+                  </span>
+                </div>
+              )}
               <div className="ai-welcome-badge">
                 <Sparkles size={20} />
               </div>
@@ -305,6 +329,28 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
             </div>
           ) : (
             <div className="ai-messages-list">
+              {isScannedOrEmpty && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: '#f59e0b',
+                    fontSize: '12px',
+                    lineHeight: '1.4',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>
+                    This document appears to be scanned or image-based — AI text analysis may not work well yet.
+                  </span>
+                </div>
+              )}
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -417,7 +463,7 @@ export const AiChatDrawer: React.FC<AiChatDrawerProps> = ({
             </button>
           </div>
           <div className="ai-footer-note">
-            PDFly AI reads extracted vector and OCR text. Files remain secure and private.
+            PDFly AI reads text-based PDF content. Scanned/image-only pages may not be readable yet. Your document text is sent securely to Google&apos;s Gemini API only when you use AI features. It is not stored on our servers.
           </div>
         </div>
       </aside>

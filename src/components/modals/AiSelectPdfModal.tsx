@@ -39,7 +39,7 @@ const FEATURE_CONFIG: Record<
 > = {
   chat: {
     title: 'Chat with PDF',
-    badge: 'CLAUDE AI ASSISTANT',
+    badge: 'PDFLY AI ASSISTANT',
     description:
       'Please select or upload a PDF document to start asking questions, extracting citations, and querying document clauses.',
     gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
@@ -80,7 +80,7 @@ const FEATURE_CONFIG: Record<
   general: {
     title: 'AI PDF Studio',
     badge: 'AI POWERED',
-    description: 'Please select or upload a PDF document to get started with Claude AI document intelligence.',
+    description: 'Please select or upload a PDF document to get started with PDFly AI document intelligence.',
     gradient: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
     icon: <Sparkles size={22} />,
     recommendedSample: 'invoice',

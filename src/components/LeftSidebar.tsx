@@ -138,7 +138,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         <button
           className={`sidebar-tab-btn ${currentTab === 'ai' ? 'active' : ''}`}
           onClick={() => onUpdateState((prev) => ({ ...prev, sidebarTab: 'ai' }))}
-          title="Claude AI Assistant Tools"
+          title="PDFly AI Assistant Tools"
           style={{ color: 'var(--accent-primary)' }}
         >
           <Sparkles size={14} />

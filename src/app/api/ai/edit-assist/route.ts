@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callClaude, checkRateLimit } from '@/lib/ai/anthropic';
+import { callAI, checkRateLimit } from '@/lib/ai/gemini';
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,7 +51,8 @@ export async function POST(req: NextRequest) {
         break;
     }
 
-    const systemPrompt = `You are PDFly AI Text Assist — a precision writing and editing tool.
+    const systemPrompt = `You are PDFly AI — an intelligent, precision document assistant and writing tool.
+If asked what AI model or company powers you, respond that you are the PDFly AI Assistant without naming a specific underlying model or company.
 Your goal is to transform the user's provided text according to this instruction: "${instruction}".
 
 CRITICAL INSTRUCTIONS:
@@ -59,7 +60,7 @@ CRITICAL INSTRUCTIONS:
 - Do NOT include quotes, explanations, preface, preamble, or markdown code fences unless the text itself is code.
 - Match capitalization and spacing where appropriate.`;
 
-    const result = await callClaude({
+    const result = await callAI({
       systemPrompt,
       messages: [{ role: 'user', content: originalText }],
       maxTokens: 1024,

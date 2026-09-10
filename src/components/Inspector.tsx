@@ -466,7 +466,7 @@ export const Inspector: React.FC<InspectorProps> = ({
                   <button
                     className="btn-primary inspector-ai-btn"
                     onClick={onOpenAiTextAssist}
-                    title="Use Claude AI to rewrite, fix grammar, concise, or change tone"
+                    title="Use AI to rewrite, fix grammar, make concise, or change tone"
                   >
                     <Sparkles size={13} />
                     <span>AI Assist</span>

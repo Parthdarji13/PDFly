@@ -18,7 +18,7 @@ export function extractDocumentText(docState: DocumentState): string {
     // 1. Gather original detected text items for this page
     const originalItems = (page.textItems || []).map((item) => ({
       text: item.text || '',
-      y: typeof item.visualY === 'number' ? item.visualY : (page.height - item.y),
+      y: typeof item.visualY === 'number' ? item.visualY : page.height - item.y,
       x: typeof item.visualX === 'number' ? item.visualX : item.x,
       fontSize: item.fontSize || 12,
     }));
@@ -74,6 +74,35 @@ export function extractDocumentText(docState: DocumentState): string {
   });
 
   return pageTexts.join('\n\n');
+}
+
+/**
+ * Detects whether a document is mostly scanned or empty (lacks extractable vector text)
+ */
+export function isDocumentScannedOrEmpty(docState: DocumentState): boolean {
+  if (!docState || !docState.pages || docState.pages.length === 0) {
+    return false;
+  }
+
+  let emptyPagesCount = 0;
+  for (const page of docState.pages) {
+    const textItemsCount = (page.textItems || []).filter(
+      (item) => item.text && item.text.trim().length > 0
+    ).length;
+    const addedCount = (docState.elements || []).filter(
+      (el) =>
+        el.pageIndex === page.pageIndex &&
+        el.type === 'text' &&
+        (el as any).text &&
+        (el as any).text.trim().length > 0
+    ).length;
+
+    if (textItemsCount + addedCount === 0) {
+      emptyPagesCount++;
+    }
+  }
+
+  return emptyPagesCount >= Math.ceil(docState.pages.length / 2);
 }
 
 /**

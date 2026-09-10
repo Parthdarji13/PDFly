@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callClaude, checkRateLimit, prepareDocumentContext, AnthropicMessage } from '@/lib/ai/anthropic';
+import { callAI, checkRateLimit, prepareDocumentContext, AiMessage } from '@/lib/ai/gemini';
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     const { text: contextText, isTruncated } = prepareDocumentContext(documentText || '', 80000);
 
-    const systemPrompt = `You are PDFly AI — an intelligent, precision document assistant powered by Claude.
+    const systemPrompt = `You are PDFly AI — an intelligent, precision document assistant.
 You have been provided with the full extracted text of the document named "${fileName || 'document.pdf'}".
 
 DOCUMENT CONTENT:
@@ -35,14 +35,15 @@ GUIDELINES:
 3. If information is not in the document, explicitly state that it was not found in the text.
 4. Format your responses using clean Markdown (headings, bullet points, bold key terms, code blocks when relevant).
 5. Keep your tone helpful, professional, and concise.
+6. If asked what AI model or company powers you, respond that you are the PDFly AI Assistant without naming a specific underlying model or company.
 ${isTruncated ? '\nNote: The document was very large, so an excerpt of the most critical sections has been provided.' : ''}`;
 
-    const formattedMessages: AnthropicMessage[] = messages.map((m: any) => ({
+    const formattedMessages: AiMessage[] = messages.map((m: any) => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: String(m.content || ''),
     }));
 
-    const result = await callClaude({
+    const result = await callAI({
       systemPrompt,
       messages: formattedMessages,
       maxTokens: 2048,
@@ -58,7 +59,7 @@ ${isTruncated ? '\nNote: The document was very large, so an excerpt of the most 
   } catch (err: any) {
     console.error('API /api/ai/chat error:', err);
     const message = err.message || 'The AI assistant is temporarily busy. Please try again in a moment.';
-    const status = message.includes('not configured') || message.includes('invalid or expired') ? 401 : 500;
+    const status = message.includes('not configured') || message.includes('invalid') ? 401 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

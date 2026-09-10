@@ -1,12 +1,12 @@
 # PDFly — AI-Powered Next-Gen PDF Editor & Studio 🚀
 
-**PDFly** is a high-performance Next.js + TypeScript PDF editor and document intelligence workspace powered by **Google Gemini AI** (with **Anthropic Claude AI** fallback). It combines 100% private client-side vector editing, automatic font matching, multi-page organizing, and secure server-side AI intelligence.
+**PDFly** is a high-performance Next.js + TypeScript PDF editor and document intelligence workspace powered by **Google Gemini AI**. It combines 100% private client-side vector editing, automatic font matching, multi-page organizing, and secure server-side AI intelligence.
 
 ---
 
-## ✨ AI-Powered Features (Google Gemini & Anthropic Claude)
+## ✨ AI-Powered Features (Google Gemini AI)
 
-PDFly integrates Google Gemini API (primary) and Anthropic Claude API (fallback) through secure server-side Next.js route handlers (`/api/ai/*`) where API keys remain strictly confidential on the server and are never exposed to client browsers.
+PDFly integrates Google Gemini API through secure server-side Next.js route handlers (`/api/ai/*`) where API keys remain strictly confidential on the server and are never exposed to client browsers.
 
 ### 1. 💬 Chat with Your PDF (`POST /api/ai/chat`)
 - Slide-out AI assistant drawer to ask questions about your document's contents.
@@ -48,7 +48,7 @@ PDFly integrates Google Gemini API (primary) and Anthropic Claude API (fallback)
 
 ## 🔒 Security, Robustness & Retry Logic
 
-- **Multi-Engine Server-Side AI:** Powered primarily by Google Gemini (`gemini-3.5-flash`, `gemini-flash-lite-latest`, `gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-flash-latest`) and Anthropic Claude (`claude-3-5-sonnet-20241022` / `claude-3-7-sonnet-20250219`) as fallback.
+- **Server-Side AI Engine:** Powered by Google Gemini (`gemini-3.5-flash`, `gemini-flash-lite-latest`, `gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-flash-latest`, `gemini-3.7-flash`, `gemini-pro-latest`).
 - **Zero Key Leakage:** API keys are loaded strictly on the server in Next.js route handlers. No API key is ever sent to or stored in the browser.
 - **Exponential Backoff Retries:** Automatically performs retries and swift model fallbacks on HTTP 429 (Rate limit), 503 (High demand / Service unavailable), and network timeouts.
 - **User-Friendly Error Handling:** If all retries fail, clean and reassuring messages are surfaced in the UI (*"The AI assistant is busy right now. Please try again in a moment."*) rather than raw unformatted API stack traces.
@@ -66,16 +66,10 @@ cp .env.example .env.local
 
 2. Configure your AI API key in `.env.local`:
 ```env
-# Primary (Recommended): Google Gemini API Key
+# Google Gemini API Key
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-3.5-flash
-
-# Fallback / Alternative: Anthropic Claude API Key
-ANTHROPIC_API_KEY=sk-ant-api03-your-actual-api-key-here
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
 ```
-
-> **Note:** `GEMINI_API_KEY` takes priority. If not provided or empty, PDFly automatically falls back to `ANTHROPIC_API_KEY`.
 
 ---
 
@@ -98,9 +92,9 @@ npm run dev
 ## 📦 Core Editor Capabilities
 
 - **Edit Original Text:** Vector font matching (detects family, weight, point size, and fill color).
-- **Add Elements:** Text boxes, vector shapes (rectangles, circles, lines, arrows, checkmarks), freehand pen, and transparent highlighters.
-- **Digital Signatures:** Draw by hand, type in cursive, or upload PNG/SVG signature images.
-- **Page Organizer:** Rotate 90°, reorder, duplicate, add blank pages, or delete pages.
-- **PDF Conversion:** PDF to JPG/PNG image extraction & Image to multi-page PDF generator.
-- **PDF Tools:** Merge multiple PDFs, split page ranges, compress file size, add diagonal text watermarks, and redact/whiteout.
-- **Export Engine:** High-fidelity PDF generation with standard embedded fonts.
+- **Freehand Drawing & Highlighting:** Pressure-smooth SVG annotation tools with opacity control.
+- **Vector Shapes:** Rectangles, rounded boxes, circles, lines, arrows, and checkmarks.
+- **Digital Signatures:** Draw signature, type cursive signatures, or upload image stamps.
+- **Image Insertion:** Insert PNG, JPEG, and vector stamps with rotation & resizing.
+- **Multi-Page Management:** Reorder pages, rotate, duplicate, delete, and add blank pages.
+- **PDF Operations:** Client-side merge, split by range, page organizing, watermarking, and compression.
