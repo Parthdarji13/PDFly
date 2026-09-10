@@ -110,7 +110,11 @@ export const HomePage: React.FC<HomePageProps> = ({
       <header className="home-nav">
         <div className="home-nav-inner">
           {/* Logo & Brand */}
-          <div className="brand-section" onClick={() => onOpenTool('edit')} style={{ cursor: 'pointer' }}>
+          <div
+            className="brand-section"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="brand-logo" title="PDFly">
               <Sparkles size={18} />
             </div>
@@ -895,19 +899,13 @@ export const HomePage: React.FC<HomePageProps> = ({
             <h5 className="footer-heading">Product</h5>
             <ul className="footer-links-list">
               <li>
-                <a href="#tools" onClick={(e) => { e.preventDefault(); onOpenTool('edit'); }}>
-                  Tools
-                </a>
+                <a href="#tools">Tools</a>
               </li>
               <li>
-                <a href="#ai-studio" onClick={(e) => { e.preventDefault(); onOpenTool('chat'); }}>
-                  AI Studio
-                </a>
+                <a href="#ai-studio">AI Studio</a>
               </li>
               <li>
-                <a href="#templates" onClick={(e) => { e.preventDefault(); setIsTemplateGalleryOpen(true); }}>
-                  Templates
-                </a>
+                <a href="#templates">Templates</a>
               </li>
             </ul>
           </div>

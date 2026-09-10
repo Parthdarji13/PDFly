@@ -13,6 +13,7 @@ interface CanvasViewportProps {
   onAddElement: (element: EditorElement, actionDesc?: string) => void;
   onUpdateElement: (id: string, updates: Partial<EditorElement>) => void;
   onSelectElement: (id: string | null) => void;
+  onOpenFile?: (file: File) => void;
   onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
 }
 
@@ -23,9 +24,11 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   onAddElement,
   onUpdateElement,
   onSelectElement,
+  onOpenFile,
   onLoadSample,
 }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const emptyFileInputRef = useRef<HTMLInputElement>(null);
   const pages = state.documentState.pages;
 
   const setZoom = (newZoom: number) => {
@@ -44,6 +47,20 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         }
       }}
     >
+      <input
+        type="file"
+        ref={emptyFileInputRef}
+        accept="application/pdf,.pdf"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && onOpenFile) {
+            onOpenFile(file);
+          }
+          e.target.value = '';
+        }}
+      />
+
       {pages.length === 0 ? (
         <div
           style={{
@@ -97,29 +114,60 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             </p>
           </div>
 
+          {onOpenFile && (
+            <button
+              className="btn-primary"
+              onClick={() => emptyFileInputRef.current?.click()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '11px 24px',
+                fontSize: '14px',
+                fontWeight: '700',
+                borderRadius: 'var(--radius-full)',
+                boxShadow: '0 4px 16px rgba(99, 102, 241, 0.35)',
+              }}
+            >
+              <span>📁 Choose PDF Document</span>
+            </button>
+          )}
+
           {onLoadSample && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginTop: '8px' }}>
-              <button
-                className="btn-secondary"
-                onClick={() => onLoadSample('invoice')}
-                style={{ borderRadius: 'var(--radius-full)' }}
-              >
-                📄 Business Invoice
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => onLoadSample('resume')}
-                style={{ borderRadius: 'var(--radius-full)' }}
-              >
-                👤 Executive Resume
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => onLoadSample('contract')}
-                style={{ borderRadius: 'var(--radius-full)' }}
-              >
-                ⚖️ Legal NDA
-              </button>
+            <div style={{ marginTop: '6px', width: '100%', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                Or start with a template:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                <button
+                  className="btn-secondary"
+                  onClick={() => onLoadSample('invoice')}
+                  style={{ borderRadius: 'var(--radius-full)', fontSize: '12.5px' }}
+                >
+                  📄 Invoice
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => onLoadSample('resume')}
+                  style={{ borderRadius: 'var(--radius-full)', fontSize: '12.5px' }}
+                >
+                  👤 Resume
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => onLoadSample('contract')}
+                  style={{ borderRadius: 'var(--radius-full)', fontSize: '12.5px' }}
+                >
+                  ⚖️ NDA
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => onLoadSample('certificate')}
+                  style={{ borderRadius: 'var(--radius-full)', fontSize: '12.5px' }}
+                >
+                  🏆 Award
+                </button>
+              </div>
             </div>
           )}
         </div>

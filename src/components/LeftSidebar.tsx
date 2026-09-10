@@ -17,6 +17,8 @@ import {
   Image as ImageIcon,
   Eraser,
   CheckCircle2,
+  FolderOpen,
+  Upload,
   Sparkles,
   MessageSquare,
   Brain,
@@ -32,6 +34,7 @@ interface LeftSidebarProps {
   onDeletePage: (pageIndex: number) => void;
   onDuplicatePage: (pageIndex: number) => void;
   onAddBlankPage: () => void;
+  onOpenFile?: (file: File) => void;
   onOpenAiChat?: () => void;
   onOpenAiSummarize?: () => void;
   onOpenAiInsights?: () => void;
@@ -45,6 +48,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onDeletePage,
   onDuplicatePage,
   onAddBlankPage,
+  onOpenFile,
   onOpenAiChat,
   onOpenAiSummarize,
   onOpenAiInsights,
@@ -118,7 +122,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         <button
           className={`sidebar-tab-btn ${currentTab === 'info' ? 'active' : ''}`}
           onClick={() => onUpdateState((prev) => ({ ...prev, sidebarTab: 'info' }))}
-          title="Document Information"
+          title="Document Metadata & Fonts"
         >
           <Info size={14} />
           <span>Info</span>
@@ -126,7 +130,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         <button
           className={`sidebar-tab-btn ${currentTab === 'history' ? 'active' : ''}`}
           onClick={() => onUpdateState((prev) => ({ ...prev, sidebarTab: 'history' }))}
-          title="History Timeline"
+          title="Edit History Stack"
         >
           <History size={14} />
           <span>History</span>
@@ -147,14 +151,35 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {/* ================= Tab: Pages ================= */}
         {currentTab === 'pages' && (
           <>
-            <button
-              className="btn-secondary"
-              style={{ width: '100%', justifyContent: 'center' }}
-              onClick={onAddBlankPage}
-            >
-              <Plus size={15} />
-              <span>Add Blank Page</span>
-            </button>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+              <button
+                className="btn-secondary"
+                style={{ flex: 1, justifyContent: 'center', fontSize: '12px', padding: '6px 4px' }}
+                onClick={onAddBlankPage}
+                title="Add a new blank page"
+              >
+                <Plus size={14} />
+                <span>Blank Page</span>
+              </button>
+              <button
+                className="btn-primary"
+                style={{ flex: 1, justifyContent: 'center', fontSize: '12px', padding: '6px 4px', background: 'var(--grad-primary)', color: '#ffffff' }}
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'application/pdf,.pdf';
+                  input.onchange = (e: any) => {
+                    const f = e.target?.files?.[0];
+                    if (f && onOpenFile) onOpenFile(f);
+                  };
+                  input.click();
+                }}
+                title="Open or Add your PDF file"
+              >
+                <FolderOpen size={14} />
+                <span>Add your PDF</span>
+              </button>
+            </div>
 
             {pages.map((page, idx) => (
               <div

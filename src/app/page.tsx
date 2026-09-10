@@ -47,6 +47,8 @@ export default function PDFEditorPage() {
   const [state, setState] = useState<AppState>(initialAppState);
   const [pdfDocProxy, setPdfDocProxy] = useState<PDFDocumentProxy | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const pdfFileInputRef = useRef<HTMLInputElement>(null);
+  const pendingToolRef = useRef<ToolId | null>(null);
 
   // Tool Modals State
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
@@ -208,6 +210,34 @@ export default function PDFEditorPage() {
         const buffer = await file.arrayBuffer();
         await loadPdfBytes(new Uint8Array(buffer), file.name);
         setCurrentView('editor');
+
+        const pending = pendingToolRef.current;
+        pendingToolRef.current = null;
+
+        if (pending === 'sign') {
+          setState((prev) => ({ ...prev, isSignatureModalOpen: true, selectedTool: 'select' }));
+          showToast('PDF loaded! Place your signature on the document.', 'success');
+        } else if (pending === 'redact') {
+          setState((prev) => ({ ...prev, selectedTool: 'redact' }));
+          showToast('PDF loaded! Drag or click to redact sensitive content.', 'info');
+        } else if (pending === 'organize') {
+          setState((prev) => ({ ...prev, isOrganizerModalOpen: true, selectedTool: 'select' }));
+        } else if (pending === 'searchReplace') {
+          setState((prev) => ({ ...prev, isSearchModalOpen: true, selectedTool: 'select' }));
+        } else if (pending === 'edit') {
+          setState((prev) => ({ ...prev, selectedTool: 'editText' }));
+          showToast('PDF loaded! Click any text on the page to edit directly.', 'info');
+        } else if (pending === 'chat') {
+          setIsAiChatOpen(true);
+        } else if (pending === 'summarize') {
+          setIsAiSummarizeOpen(true);
+        } else if (pending === 'insights') {
+          setIsAiInsightsOpen(true);
+        } else if (pending === 'aiAssist') {
+          setIsAiTextAssistOpen(true);
+        } else {
+          showToast('PDF loaded successfully!', 'success');
+        }
       } catch (err: any) {
         console.error('Failed to open PDF file:', err);
         showToast(err?.message || 'Failed to parse PDF file. Ensure it is a valid PDF.', 'error');
@@ -216,7 +246,7 @@ export default function PDFEditorPage() {
     [loadPdfBytes, showToast]
   );
 
-  // Load pre-made sample document
+  // Load pre-made sample document (ONLY invoked for explicit template choices)
   const handleLoadSample = useCallback(
     async (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => {
       try {
@@ -243,12 +273,16 @@ export default function PDFEditorPage() {
           fileName = 'formal_business_letter.pdf';
         } else {
           pdfBytes = await generateBlankPdf();
-          fileName = 'blank_canvas.pdf';
+          fileName = 'untitled_document.pdf';
         }
 
         await loadPdfBytes(pdfBytes, fileName);
         setCurrentView('editor');
-        showToast(`Loaded ${sampleType.toUpperCase()} template!`, 'success');
+        if (sampleType === 'blank') {
+          showToast('Opened Studio with a blank page! Click "Add your PDF" to load a file.', 'info');
+        } else {
+          showToast(`Loaded ${sampleType.toUpperCase()} template!`, 'success');
+        }
       } catch (err: any) {
         console.error('Error loading sample:', err);
         showToast('Failed to generate template PDF', 'error');
@@ -257,64 +291,32 @@ export default function PDFEditorPage() {
     [loadPdfBytes, showToast]
   );
 
-  // Handle opening specific tool from Home Page
+  // Handle opening specific tool from Home Page or TopNav
   const handleOpenTool = useCallback(
-    (toolId: ToolId) => {
+    async (toolId: ToolId) => {
+      // Modals that handle file selection independently
       switch (toolId) {
-        case 'edit':
-          if (state.documentState.pages.length === 0) {
-            handleLoadSample('invoice');
-          }
-          setCurrentView('editor');
-          setState((prev) => ({ ...prev, selectedTool: 'editText' }));
-          showToast('Click any text on the page to edit it directly with matched fonts!', 'info');
-          break;
         case 'merge':
           setIsMergeModalOpen(true);
-          break;
+          return;
         case 'split':
           setIsSplitModalOpen(true);
-          break;
+          return;
         case 'compress':
           setIsCompressModalOpen(true);
-          break;
+          return;
         case 'pdfToImage':
           setIsPdfToImageModalOpen(true);
-          break;
+          return;
         case 'imageToPdf':
           setIsImageToPdfModalOpen(true);
-          break;
-        case 'organize':
-          if (state.documentState.pages.length === 0) {
-            handleLoadSample('invoice');
-          }
-          setCurrentView('editor');
-          setState((prev) => ({ ...prev, isOrganizerModalOpen: true }));
-          break;
+          return;
         case 'watermark':
           setIsWatermarkModalOpen(true);
-          break;
-        case 'sign':
-          if (state.documentState.pages.length === 0) {
-            handleLoadSample('contract');
-          }
-          setCurrentView('editor');
-          setState((prev) => ({ ...prev, isSignatureModalOpen: true }));
-          break;
-        case 'redact':
-          if (state.documentState.pages.length === 0) {
-            handleLoadSample('resume');
-          }
-          setCurrentView('editor');
-          setState((prev) => ({ ...prev, selectedTool: 'redact' }));
-          break;
-        case 'searchReplace':
-          if (state.documentState.pages.length === 0) {
-            handleLoadSample('invoice');
-          }
-          setCurrentView('editor');
-          setState((prev) => ({ ...prev, isSearchModalOpen: true }));
-          break;
+          return;
+        case 'blank':
+          await handleLoadSample('blank');
+          return;
         case 'chat':
           if (state.documentState.pages.length === 0) {
             setAiSelectFeature('chat');
@@ -323,7 +325,7 @@ export default function PDFEditorPage() {
             setCurrentView('editor');
             setIsAiChatOpen(true);
           }
-          break;
+          return;
         case 'summarize':
           if (state.documentState.pages.length === 0) {
             setAiSelectFeature('summarize');
@@ -332,7 +334,7 @@ export default function PDFEditorPage() {
             setCurrentView('editor');
             setIsAiSummarizeOpen(true);
           }
-          break;
+          return;
         case 'insights':
           if (state.documentState.pages.length === 0) {
             setAiSelectFeature('insights');
@@ -341,7 +343,7 @@ export default function PDFEditorPage() {
             setCurrentView('editor');
             setIsAiInsightsOpen(true);
           }
-          break;
+          return;
         case 'aiAssist':
           if (state.documentState.pages.length === 0) {
             setAiSelectFeature('aiAssist');
@@ -350,14 +352,49 @@ export default function PDFEditorPage() {
             setCurrentView('editor');
             setIsAiTextAssistOpen(true);
           }
+          return;
+      }
+
+      // If no document is loaded, open Studio with a clean blank page (NEVER a sample template)
+      if (state.documentState.pages.length === 0) {
+        await handleLoadSample('blank');
+        if (toolId === 'sign') {
+          setState((prev) => ({ ...prev, isSignatureModalOpen: true }));
+        } else if (toolId === 'redact') {
+          setState((prev) => ({ ...prev, selectedTool: 'redact' }));
+        } else if (toolId === 'organize') {
+          setState((prev) => ({ ...prev, isOrganizerModalOpen: true }));
+        } else if (toolId === 'searchReplace') {
+          setState((prev) => ({ ...prev, isSearchModalOpen: true }));
+        } else {
+          setState((prev) => ({ ...prev, selectedTool: 'editText' }));
+        }
+        return;
+      }
+
+      // If document is already loaded, open directly in editor
+      setCurrentView('editor');
+      switch (toolId) {
+        case 'edit':
+          setState((prev) => ({ ...prev, selectedTool: 'editText' }));
+          showToast('Click any text on the page to edit it directly with matched fonts!', 'info');
           break;
-        case 'blank':
-          handleLoadSample('blank');
-          setCurrentView('editor');
+        case 'organize':
+          setState((prev) => ({ ...prev, isOrganizerModalOpen: true }));
+          break;
+        case 'sign':
+          setState((prev) => ({ ...prev, isSignatureModalOpen: true }));
+          break;
+        case 'redact':
+          setState((prev) => ({ ...prev, selectedTool: 'redact' }));
+          showToast('Click or drag over text or areas to redact sensitive content.', 'info');
+          break;
+        case 'searchReplace':
+          setState((prev) => ({ ...prev, isSearchModalOpen: true }));
           break;
       }
     },
-    [handleLoadSample, state.documentState.pages.length]
+    [handleLoadSample, showToast, state.documentState.pages.length]
   );
 
   // Apply AI Text Replacement to selected element
@@ -765,6 +802,21 @@ export default function PDFEditorPage() {
         onChange={handleInsertImageFile}
       />
 
+      {/* Global hidden file input for PDF selection across tools */}
+      <input
+        type="file"
+        ref={pdfFileInputRef}
+        accept="application/pdf,.pdf"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            handleOpenFile(file);
+          }
+          e.target.value = '';
+        }}
+      />
+
       {/* ================= VIEW: HOME PAGE ================= */}
       {currentView === 'home' ? (
         <HomePage
@@ -845,6 +897,7 @@ export default function PDFEditorPage() {
               onDeletePage={handleDeletePage}
               onDuplicatePage={handleDuplicatePage}
               onAddBlankPage={handleAddBlankPage}
+              onOpenFile={handleOpenFile}
               onOpenAiChat={() => {
                 if (state.documentState.pages.length === 0) {
                   setAiSelectFeature('chat');
@@ -879,6 +932,7 @@ export default function PDFEditorPage() {
               onAddElement={handleAddElement}
               onUpdateElement={handleUpdateElement}
               onSelectElement={(id) => setState((prev) => ({ ...prev, selectedElementId: id }))}
+              onOpenFile={handleOpenFile}
               onLoadSample={handleLoadSample}
             />
           </div>

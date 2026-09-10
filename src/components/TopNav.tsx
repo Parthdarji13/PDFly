@@ -1,10 +1,7 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React from 'react';
 import {
-  FileText,
-  Upload,
-  FolderOpen,
   Undo2,
   Redo2,
   ZoomIn,
@@ -14,13 +11,9 @@ import {
   Moon,
   Download,
   Search,
-  Layers,
-  FilePlus,
   Sparkles,
   PanelLeft,
   Home,
-  Grid,
-  Bot,
   MessageSquare,
   Brain,
 } from 'lucide-react';
@@ -29,8 +22,8 @@ import { AppState } from '../lib/state/store';
 interface TopNavProps {
   state: AppState;
   onUpdateState: (updater: (prev: AppState) => AppState) => void;
-  onOpenFile: (file: File) => void;
-  onLoadSample: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
+  onOpenFile?: (file: File) => void;
+  onLoadSample?: (sampleType: 'invoice' | 'resume' | 'contract' | 'certificate' | 'proposal' | 'letter' | 'blank') => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -46,8 +39,6 @@ interface TopNavProps {
 export const TopNav: React.FC<TopNavProps> = ({
   state,
   onUpdateState,
-  onOpenFile,
-  onLoadSample,
   onUndo,
   onRedo,
   canUndo,
@@ -59,14 +50,6 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenAiSummarize,
   onOpenAiInsights,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onOpenFile(file);
-    }
-  };
 
   const setZoom = (newZoom: number) => {
     const clamped = Math.max(0.4, Math.min(3.0, Math.round(newZoom * 10) / 10));
@@ -134,49 +117,7 @@ export const TopNav: React.FC<TopNavProps> = ({
         </div>
       </div>
 
-      {/* File Actions & Templates */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <input
-          type="file"
-          ref={fileInputRef}
-          accept="application/pdf"
-          style={{ display: 'none' }}
-          onChange={handleFileChange}
-        />
-        <button
-          className="btn-secondary"
-          onClick={() => fileInputRef.current?.click()}
-          title="Open PDF from your computer"
-        >
-          <FolderOpen size={15} />
-          <span className="nav-btn-text">Open PDF</span>
-        </button>
 
-        {/* Sample PDFs Dropdown */}
-        <select
-          className="btn-secondary sample-select-btn"
-          style={{ cursor: 'pointer', paddingRight: '20px' }}
-          onChange={(e) => {
-            if (e.target.value) {
-              onLoadSample(e.target.value as any);
-              e.target.value = '';
-            }
-          }}
-          defaultValue=""
-          title="Load pre-made editable sample templates"
-        >
-          <option value="" disabled>
-            ✨ Templates...
-          </option>
-          <option value="invoice">📄 Business Invoice</option>
-          <option value="resume">👤 Executive Resume</option>
-          <option value="contract">⚖️ Legal Agreement (NDA)</option>
-          <option value="certificate">🏆 Award Certificate</option>
-          <option value="proposal">📊 Project Proposal</option>
-          <option value="letter">✉️ Business Letter</option>
-          <option value="blank">➕ Blank Canvas</option>
-        </select>
-      </div>
 
       {/* Center Viewport & History Controls */}
       <div className="nav-center-actions">
@@ -302,15 +243,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           <span className="nav-btn-text">Find / Replace</span>
         </button>
 
-        {/* Page Organizer Trigger */}
-        <button
-          className="btn-secondary"
-          onClick={() => onUpdateState((prev) => ({ ...prev, isOrganizerModalOpen: true }))}
-          title="Organize, Reorder & Rotate Pages"
-        >
-          <Layers size={15} />
-          <span className="nav-btn-text">Pages ({state.documentState.pageCount})</span>
-        </button>
+
 
         {/* Dark/Light Theme Toggle */}
         <button
