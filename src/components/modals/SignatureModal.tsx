@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X, PenTool, Type, Upload, RotateCcw, Check, Sparkles } from 'lucide-react';
-import { SignatureElement } from '../../lib/types';
 
 interface SignatureModalProps {
   isOpen: boolean;
@@ -16,6 +15,74 @@ const SCRIPT_FONTS = [
   { id: 'Playfair', name: 'Playfair Italic', family: '"Playfair Display", serif', style: 'italic' },
   { id: 'TimesItalic', name: 'Formal Script', family: '"Times New Roman", Times, serif', style: 'italic' },
 ];
+
+/**
+ * Trim transparent whitespace surrounding a canvas drawing for clean bounding placement
+ */
+function getTrimmedSignatureDataUrl(canvas: HTMLCanvasElement): string {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas.toDataURL('image/png');
+
+  const width = canvas.width;
+  const height = canvas.height;
+  if (width === 0 || height === 0) return canvas.toDataURL('image/png');
+
+  try {
+    const imgData = ctx.getImageData(0, 0, width, height);
+    const data = imgData.data;
+
+    let minX = width;
+    let minY = height;
+    let maxX = 0;
+    let maxY = 0;
+    let found = false;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const alpha = data[(y * width + x) * 4 + 3];
+        if (alpha > 10) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          found = true;
+        }
+      }
+    }
+
+    if (!found) {
+      return canvas.toDataURL('image/png');
+    }
+
+    const padding = 16;
+    const cropX = Math.max(0, minX - padding);
+    const cropY = Math.max(0, minY - padding);
+    const cropWidth = Math.min(width - cropX, maxX - minX + padding * 2);
+    const cropHeight = Math.min(height - cropY, maxY - minY + padding * 2);
+
+    const croppedCanvas = document.createElement('canvas');
+    croppedCanvas.width = cropWidth;
+    croppedCanvas.height = cropHeight;
+    const croppedCtx = croppedCanvas.getContext('2d');
+    if (!croppedCtx) return canvas.toDataURL('image/png');
+
+    croppedCtx.drawImage(
+      canvas,
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      cropWidth,
+      cropHeight
+    );
+
+    return croppedCanvas.toDataURL('image/png');
+  } catch {
+    return canvas.toDataURL('image/png');
+  }
+}
 
 export const SignatureModal: React.FC<SignatureModalProps> = ({
   isOpen,
@@ -31,9 +98,78 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
   const [selectedFont, setSelectedFont] = useState<string>('GreatVibes');
 
   // Draw signature state
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Synchronize canvas buffer resolution with DOM dimensions and pixel ratio
+  const syncCanvasSize = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const targetW = Math.round(rect.width * dpr);
+    const targetH = Math.round(rect.height * dpr);
+
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      // Preserve existing drawing if any
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      const hasContent = canvas.width > 0 && canvas.height > 0;
+      if (tempCtx && hasContent) {
+        tempCtx.drawImage(canvas, 0, 0);
+      }
+
+      canvas.width = targetW;
+      canvas.height = targetH;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = sigColor;
+        ctx.lineWidth = penWidth;
+
+        if (hasContent && tempCanvas.width > 0 && tempCanvas.height > 0) {
+          ctx.drawImage(tempCanvas, 0, 0, rect.width, rect.height);
+        }
+      }
+    }
+  }, [sigColor, penWidth]);
+
+  // Handle ResizeObserver to track layout changes and animation settling
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'draw') return;
+
+    syncCanvasSize();
+
+    // Re-check after animation finishes
+    const timer1 = setTimeout(syncCanvasSize, 50);
+    const timer2 = setTimeout(syncCanvasSize, 200);
+
+    const container = containerRef.current;
+    let observer: ResizeObserver | null = null;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        syncCanvasSize();
+      });
+      observer.observe(container);
+    }
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      if (observer) observer.disconnect();
+    };
+  }, [isOpen, activeTab, syncCanvasSize]);
 
   // Clear drawing canvas
   const handleClearCanvas = () => {
@@ -41,43 +177,47 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = sigColor;
+    ctx.lineWidth = penWidth;
     setHasDrawn(false);
+    lastPointRef.current = null;
   };
-
-  useEffect(() => {
-    if (isOpen && activeTab === 'draw') {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        canvas.width = canvas.offsetWidth * 2;
-        canvas.height = canvas.offsetHeight * 2;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.scale(2, 2);
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-        }
-      }
-    }
-  }, [isOpen, activeTab]);
 
   if (!isOpen) return null;
 
-  // Canvas draw handlers (Supports Touch & Mouse)
+  // Convert client pointer or touch coordinates to canvas coordinate space
   const getCanvasCoords = (
     e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
-  ) => {
+  ): { x: number; y: number } | null => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    const clientX =
-      'touches' in e && e.touches.length > 0
-        ? e.touches[0].clientX
-        : (e as React.MouseEvent).clientX;
-    const clientY =
-      'touches' in e && e.touches.length > 0
-        ? e.touches[0].clientY
-        : (e as React.MouseEvent).clientY;
+    if (rect.width === 0 || rect.height === 0) return null;
+
+    let clientX = 0;
+    let clientY = 0;
+
+    if ('touches' in e) {
+      if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else if (e.changedTouches && e.changedTouches.length > 0) {
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+      } else {
+        return null;
+      }
+    } else {
+      clientX = (e as React.MouseEvent).clientX;
+      clientY = (e as React.MouseEvent).clientY;
+    }
+
     return {
       x: clientX - rect.left,
       y: clientY - rect.top,
@@ -87,17 +227,36 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
   const handleStartDraw = (
     e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
   ) => {
-    const coords = getCanvasCoords(e);
-    if (!coords) return;
+    if ('touches' in e) {
+      e.preventDefault();
+    }
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    if (canvas.width === 0 || canvas.height === 0) {
+      syncCanvasSize();
+    }
+
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.strokeStyle = sigColor;
     ctx.lineWidth = penWidth;
+
     ctx.beginPath();
     ctx.moveTo(coords.x, coords.y);
+    ctx.lineTo(coords.x + 0.01, coords.y + 0.01);
+    ctx.stroke();
+
+    lastPointRef.current = coords;
     setIsDrawing(true);
     setHasDrawn(true);
   };
@@ -106,19 +265,43 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
   ) => {
     if (!isDrawing) return;
-    const coords = getCanvasCoords(e);
-    if (!coords) return;
+    if ('touches' in e) {
+      e.preventDefault();
+    }
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.lineTo(coords.x, coords.y);
-    ctx.stroke();
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+
+    const last = lastPointRef.current;
+    if (last) {
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(coords.x, coords.y);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(coords.x, coords.y);
+      ctx.lineTo(coords.x + 0.01, coords.y + 0.01);
+      ctx.stroke();
+    }
+
+    lastPointRef.current = coords;
   };
 
   const handleEndDraw = () => {
-    setIsDrawing(false);
+    if (isDrawing) {
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (ctx) {
+        ctx.closePath();
+      }
+      setIsDrawing(false);
+      lastPointRef.current = null;
+    }
   };
 
   // Convert typed text to PNG Data URL
@@ -137,7 +320,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     ctx.textBaseline = 'middle';
     ctx.fillText(typedName || 'Signature', 300, 100);
 
-    return canvas.toDataURL('image/png');
+    return getTrimmedSignatureDataUrl(canvas);
   };
 
   // Handle image upload
@@ -171,7 +354,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
             }
           }
           ctx.putImageData(imgData, 0, 0);
-          onAddSignature(canvas.toDataURL('image/png'), 'upload');
+          onAddSignature(getTrimmedSignatureDataUrl(canvas), 'upload');
           onClose();
         } catch (err) {
           console.error('Failed to process signature image:', err);
@@ -193,7 +376,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     if (activeTab === 'draw') {
       const canvas = canvasRef.current;
       if (!canvas || !hasDrawn) return;
-      onAddSignature(canvas.toDataURL('image/png'), 'draw');
+      onAddSignature(getTrimmedSignatureDataUrl(canvas), 'draw');
       onClose();
     } else if (activeTab === 'type') {
       const dataUrl = getTypedSignatureDataUrl();
@@ -223,7 +406,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
               onClick={() => setActiveTab('draw')}
             >
               <PenTool size={14} style={{ display: 'inline', marginRight: '6px' }} />
-              Draw
+              Draw Signature
             </button>
             <button
               className={`sig-tab-btn ${activeTab === 'type' ? 'active' : ''}`}
@@ -253,7 +436,14 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
               ].map((c) => (
                 <button
                   key={c.hex}
-                  onClick={() => setSigColor(c.hex)}
+                  onClick={() => {
+                    setSigColor(c.hex);
+                    const canvas = canvasRef.current;
+                    const ctx = canvas?.getContext('2d');
+                    if (ctx) {
+                      ctx.strokeStyle = c.hex;
+                    }
+                  }}
                   style={{
                     width: '24px',
                     height: '24px',
@@ -272,7 +462,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
           {/* ================= Tab: Draw ================= */}
           {activeTab === 'draw' && (
             <div>
-              <div className="signature-canvas-container">
+              <div ref={containerRef} className="signature-canvas-container">
                 <canvas
                   ref={canvasRef}
                   className="signature-canvas"
@@ -285,19 +475,8 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
                   onTouchEnd={handleEndDraw}
                 />
                 {!hasDrawn && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--text-muted)',
-                      pointerEvents: 'none',
-                      fontSize: '13px',
-                    }}
-                  >
-                    ✍️ Sign here using mouse or touch screen
+                  <div className="signature-canvas-hint">
+                    ✍️ Draw signature with mouse, stylus or finger
                   </div>
                 )}
               </div>
@@ -317,7 +496,15 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
                     min={1}
                     max={8}
                     value={penWidth}
-                    onChange={(e) => setPenWidth(parseInt(e.target.value, 10))}
+                    onChange={(e) => {
+                      const newWidth = parseInt(e.target.value, 10);
+                      setPenWidth(newWidth);
+                      const canvas = canvasRef.current;
+                      const ctx = canvas?.getContext('2d');
+                      if (ctx) {
+                        ctx.lineWidth = newWidth;
+                      }
+                    }}
                   />
                 </div>
 

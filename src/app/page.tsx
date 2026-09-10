@@ -349,6 +349,16 @@ export default function PDFEditorPage() {
             setIsAiInsightsOpen(true);
           }
           return;
+        case 'sign':
+          if (state.documentState.pages.length === 0) {
+            pendingToolRef.current = 'sign';
+            pdfFileInputRef.current?.click();
+            showToast('Please select a PDF document to sign.', 'info');
+          } else {
+            setCurrentView('editor');
+            setState((prev) => ({ ...prev, isSignatureModalOpen: true }));
+          }
+          return;
         case 'aiAssist':
           if (state.documentState.pages.length === 0) {
             setAiSelectFeature('aiAssist');
@@ -363,9 +373,7 @@ export default function PDFEditorPage() {
       // If no document is loaded, open Studio with a clean blank page (NEVER a sample template)
       if (state.documentState.pages.length === 0) {
         await handleLoadSample('blank');
-        if (toolId === 'sign') {
-          setState((prev) => ({ ...prev, isSignatureModalOpen: true }));
-        } else if (toolId === 'redact') {
+        if (toolId === 'redact') {
           setState((prev) => ({ ...prev, selectedTool: 'redact' }));
         } else if (toolId === 'organize') {
           setState((prev) => ({ ...prev, isOrganizerModalOpen: true }));
@@ -386,9 +394,6 @@ export default function PDFEditorPage() {
           break;
         case 'organize':
           setState((prev) => ({ ...prev, isOrganizerModalOpen: true }));
-          break;
-        case 'sign':
-          setState((prev) => ({ ...prev, isSignatureModalOpen: true }));
           break;
         case 'redact':
           setState((prev) => ({ ...prev, selectedTool: 'redact' }));
@@ -697,24 +702,62 @@ export default function PDFEditorPage() {
 
   // Add Signature to document
   const handleAddSignature = (signatureDataUrl: string, type: 'draw' | 'type' | 'upload') => {
-    const newSigEl: EditorElement = {
-      id: `sig-${Date.now()}`,
-      pageIndex: state.activePageIndex,
-      type: 'signature',
-      x: 120,
-      y: 180,
-      width: 190,
-      height: 70,
-      dataUrl: signatureDataUrl,
-      signatureType: type,
-      dateAdded: new Date().toISOString(),
-      zIndex: state.documentState.elements.length + 1,
-      opacity: 1,
-    };
+    const activePage = state.documentState.pages[state.activePageIndex] || { width: 595, height: 842 };
+    const img = new Image();
+    img.onload = () => {
+      const naturalWidth = img.naturalWidth || 200;
+      const naturalHeight = img.naturalHeight || 80;
+      const targetWidth = Math.min(220, Math.max(120, naturalWidth / 2));
+      const targetHeight = Math.max(25, Math.round((targetWidth / naturalWidth) * naturalHeight));
 
-    handleAddElement(newSigEl, 'Added signature');
-    setState((prev) => ({ ...prev, selectedTool: 'select' }));
-    showToast('Signature placed on active page', 'success');
+      const newSigEl: EditorElement = {
+        id: `sig-${Date.now()}`,
+        pageIndex: state.activePageIndex,
+        type: 'signature',
+        x: Math.max(20, Math.round((activePage.width - targetWidth) / 2)),
+        y: Math.max(20, Math.round((activePage.height - targetHeight) / 2)),
+        width: targetWidth,
+        height: targetHeight,
+        dataUrl: signatureDataUrl,
+        signatureType: type,
+        dateAdded: new Date().toISOString(),
+        zIndex: state.documentState.elements.length + 1,
+        opacity: 1,
+      };
+
+      handleAddElement(newSigEl, 'Added signature');
+      setState((prev) => ({
+        ...prev,
+        selectedTool: 'select',
+        selectedElementId: newSigEl.id,
+      }));
+      showToast('Signature placed! Drag to move or use corners to resize.', 'success');
+    };
+    img.onerror = () => {
+      const newSigEl: EditorElement = {
+        id: `sig-${Date.now()}`,
+        pageIndex: state.activePageIndex,
+        type: 'signature',
+        x: 120,
+        y: 180,
+        width: 190,
+        height: 70,
+        dataUrl: signatureDataUrl,
+        signatureType: type,
+        dateAdded: new Date().toISOString(),
+        zIndex: state.documentState.elements.length + 1,
+        opacity: 1,
+      };
+
+      handleAddElement(newSigEl, 'Added signature');
+      setState((prev) => ({
+        ...prev,
+        selectedTool: 'select',
+        selectedElementId: newSigEl.id,
+      }));
+      showToast('Signature placed on active page', 'success');
+    };
+    img.src = signatureDataUrl;
   };
 
   // Add Stamp to document

@@ -351,13 +351,18 @@ export const PageCard: React.FC<PageCardProps> = ({
   // Mouse Up Event on Page Card
   const handleMouseUp = () => {
     // Finish freehand drawing
-    if (isDrawing && currentStroke.length > 1) {
+    if (isDrawing && currentStroke.length >= 1) {
       const isHighlighter = state.selectedTool === 'highlighter';
+      const strokePoints =
+        currentStroke.length === 1
+          ? [currentStroke[0], { x: currentStroke[0].x + 0.1, y: currentStroke[0].y + 0.1 }]
+          : currentStroke;
+
       const newDrawEl: DrawElement = {
         id: `draw-${Date.now()}`,
         pageIndex: pageIndex,
         type: 'draw',
-        points: currentStroke,
+        points: strokePoints,
         strokeColor: isHighlighter
           ? state.activeDrawConfig.highlighterColor
           : state.activeDrawConfig.strokeColor,
@@ -471,7 +476,15 @@ export const PageCard: React.FC<PageCardProps> = ({
       )}
 
       {/* User Added / Modified Elements Overlay */}
-      <div className="elements-overlay">
+      <div
+        className="elements-overlay"
+        style={{
+          pointerEvents:
+            state.selectedTool === 'draw' || state.selectedTool === 'highlighter'
+              ? 'none'
+              : 'auto',
+        }}
+      >
         {pageElements.map((el) => {
           const isSelected = state.selectedElementId === el.id;
 
@@ -796,11 +809,15 @@ export const PageCard: React.FC<PageCardProps> = ({
             })}
 
           {/* Current In-Progress Freehand Stroke */}
-          {isDrawing && currentStroke.length > 1 && (
+          {isDrawing && currentStroke.length >= 1 && (
             <path
-              d={currentStroke
-                .map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x * scale} ${p.y * scale}`)
-                .join(' ')}
+              d={
+                currentStroke.length === 1
+                  ? `M ${currentStroke[0].x * scale} ${currentStroke[0].y * scale} L ${currentStroke[0].x * scale + 0.1} ${currentStroke[0].y * scale + 0.1}`
+                  : currentStroke
+                      .map((p: Point, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x * scale} ${p.y * scale}`)
+                      .join(' ')
+              }
               stroke={
                 state.selectedTool === 'highlighter'
                   ? state.activeDrawConfig.highlighterColor
