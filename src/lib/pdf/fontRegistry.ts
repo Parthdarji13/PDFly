@@ -86,14 +86,15 @@ export async function getOrEmbedFont(
         // Already registered
       }
 
-      const embeddedFont = await pdfDoc.embedFont(extracted.data);
-      // Verify that embedded subset font can encode standard text with spaces
-      embeddedFont.encodeText('The quick brown fox jumps 0123456789 -/:');
+      const fontBytes = new Uint8Array(extracted.data);
+      const embeddedFont = await pdfDoc.embedFont(fontBytes);
       fontCache.set(fontKey, embeddedFont);
+      if (extracted.id) fontCache.set(extracted.id, embeddedFont);
+      if (extracted.cssFamily) fontCache.set(extracted.cssFamily, embeddedFont);
       return embeddedFont;
     } catch (embedErr) {
       console.warn(
-        `[fontRegistry] Extracted font subset cannot encode standard glyphs/spaces for "${extracted.name}". Using standard "${extracted.fallbackPdfKey}":`,
+        `[fontRegistry] Failed to embed font "${extracted.name}". Using fallback "${extracted.fallbackPdfKey}":`,
         embedErr
       );
       // Fallback to the extracted font's standard fallback key

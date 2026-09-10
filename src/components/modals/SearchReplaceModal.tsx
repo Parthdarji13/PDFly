@@ -79,6 +79,9 @@ export const SearchReplaceModal: React.FC<SearchReplaceModalProps> = ({
           width: item.width,
           height: item.height,
         },
+        isEmbeddedFont: item.isEmbeddedFont,
+        embeddedFontId: item.embeddedFontId,
+        fontMatchQuality: item.fontMatchQuality,
         zIndex: 50 + idx,
         opacity: 1,
       };

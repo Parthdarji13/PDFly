@@ -258,8 +258,7 @@ export const Inspector: React.FC<InspectorProps> = ({
                     <optgroup label="⭐ Document Embedded Fonts">
                       {Object.values(state.documentState.extractedFonts).map((font) => (
                         <option key={font.id} value={font.cssFamily}>
-                          ⭐ {font.cleanName || font.name} (
-                          {font.isEmbedded ? 'Embedded' : 'Standard'})
+                          ⭐ {font.cleanName || font.name}
                         </option>
                       ))}
                     </optgroup>
