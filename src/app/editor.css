@@ -466,11 +466,13 @@
   color: var(--text-primary);
   outline: none;
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .inspector-input-number::-webkit-outer-spin-button,
 .inspector-input-number::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
@@ -1153,6 +1155,7 @@
 .hero-gradient-text {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 60%, #3b82f6 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
