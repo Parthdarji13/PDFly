@@ -16,7 +16,8 @@ import {
 } from '../lib/types';
 import { AppState } from '../lib/state/store';
 import { renderPageToCanvas } from '../lib/pdf/pdfEngine';
-import { sampleCanvasColor } from '../lib/pdf/fontMatcher';
+import { sampleCanvasColor, sampleCanvasBackgroundColor, cleanTextForPdf } from '../lib/pdf/fontMatcher';
+import { Check } from 'lucide-react';
 
 interface PageCardProps {
   page: PageInfo;
@@ -102,13 +103,26 @@ export const PageCard: React.FC<PageCardProps> = ({
   const handleOriginalTextClick = (textItem: DetectedTextItem, e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // Sample background color under the text item
-    const sampledBg = sampleCanvasColor(
+    // Accurately sample background color outside text glyphs
+    const sampledBg = sampleCanvasBackgroundColor(
       canvasRef.current,
-      (textItem.visualX + textItem.width / 2) * 2,
-      (textItem.visualY + textItem.height / 2) * 2,
+      {
+        x: textItem.visualX,
+        y: textItem.visualY,
+        width: textItem.width,
+        height: textItem.height,
+      },
+      2.0,
       '#ffffff'
     );
+
+    // Calculate background luminance to guarantee optimal text contrast
+    const bgR = parseInt(sampledBg.slice(1, 3), 16) || 255;
+    const bgG = parseInt(sampledBg.slice(3, 5), 16) || 255;
+    const bgB = parseInt(sampledBg.slice(5, 7), 16) || 255;
+    const bgLuminance = 0.299 * bgR + 0.587 * bgG + 0.114 * bgB;
+
+    const textColor = bgLuminance < 128 ? '#ffffff' : (textItem.color && textItem.color !== '#000000' ? textItem.color : '#0f172a');
 
     // Check if an editor element already replaced this text item
     const existingEl = pageElements.find(
@@ -127,16 +141,16 @@ export const PageCard: React.FC<PageCardProps> = ({
       type: 'text',
       x: textItem.visualX,
       y: textItem.visualY,
-      width: Math.max(80, textItem.width + 10),
-      height: Math.max(20, textItem.height + 4),
-      text: textItem.text,
+      width: Math.max(textItem.width + 8, textItem.width * 1.02),
+      height: Math.max(textItem.height + 2, textItem.height),
+      text: cleanTextForPdf(textItem.text),
       fontFamily: textItem.fontFamily,
       pdfFontKey: textItem.pdfFontKey,
       fontSize: textItem.fontSize,
       fontWeight: textItem.fontWeight,
       fontStyle: textItem.fontStyle,
       underline: false,
-      color: textItem.color || '#0f172a',
+      color: textColor,
       align: 'left',
       lineHeight: 1.2,
       letterSpacing: 0,
@@ -494,9 +508,9 @@ export const PageCard: React.FC<PageCardProps> = ({
                       textDecoration: (el as TextElement).underline ? 'underline' : 'none',
                       color: (el as TextElement).color || '#0f172a',
                       textAlign: (el as TextElement).align || 'left',
-                      lineHeight: (el as TextElement).lineHeight || 1.25,
+                      lineHeight: (el as TextElement).lineHeight || 1.2,
                       backgroundColor: (el as TextElement).backgroundColor || 'transparent',
-                      padding: '2px 4px',
+                      padding: '1px 2px',
                       margin: 0,
                       border: 'none',
                       outline: 'none',
@@ -516,6 +530,12 @@ export const PageCard: React.FC<PageCardProps> = ({
                       e.stopPropagation();
                       if (e.key === 'Escape') {
                         e.currentTarget.blur();
+                        onSelectElement(null);
+                      }
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                        onSelectElement(null);
                       }
                     }}
                     onKeyUp={(e) => e.stopPropagation()}
@@ -539,9 +559,9 @@ export const PageCard: React.FC<PageCardProps> = ({
                       textDecoration: (el as TextElement).underline ? 'underline' : 'none',
                       color: (el as TextElement).color || '#0f172a',
                       textAlign: (el as TextElement).align || 'left',
-                      lineHeight: (el as TextElement).lineHeight || 1.25,
+                      lineHeight: (el as TextElement).lineHeight || 1.2,
                       backgroundColor: (el as TextElement).backgroundColor || 'transparent',
-                      padding: '2px 4px',
+                      padding: '1px 2px',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       cursor: 'move',
@@ -690,6 +710,28 @@ export const PageCard: React.FC<PageCardProps> = ({
                         : 'none',
                   }}
                 />
+              )}
+
+              {/* Floating DONE Button on Selected Element */}
+              {isSelected && (
+                <button
+                  type="button"
+                  className="element-done-badge"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onSelectElement(null);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onSelectElement(null);
+                  }}
+                  title="Done (Finish editing & view result)"
+                >
+                  <Check size={11} strokeWidth={2.5} />
+                  <span>DONE</span>
+                </button>
               )}
 
               {/* Resize Handles (When selected in select tool) */}

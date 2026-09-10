@@ -1,6 +1,6 @@
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { PageInfo, DetectedTextItem, ExtractedFontInfo } from '../types';
-import { matchPdfFont, calculateFontSizeFromTransform, cleanPdfFontName } from './fontMatcher';
+import { matchPdfFont, calculateFontSizeFromTransform, cleanPdfFontName, cleanTextForPdf } from './fontMatcher';
 import { registerWebFont } from './fontRegistry';
 
 let cachedPdfjsLib: typeof import('pdfjs-dist') | null = null;
@@ -48,7 +48,12 @@ function getCommonObj(commonObjs: any, id: string): Promise<any> {
  * Loads a PDF from an ArrayBuffer or Uint8Array
  */
 export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<LoadedPDF> {
-  const uint8Data = data instanceof Uint8Array ? data : new Uint8Array(data);
+  // Always create an isolated clone so PDF.js worker cannot detach or mutate the caller buffer
+  const copyBuffer =
+    data instanceof Uint8Array
+      ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+      : data.slice(0);
+  const uint8Data = new Uint8Array(copyBuffer);
 
   if (uint8Data.byteLength === 0) {
     throw new Error('PDF file is empty (0 bytes).');
@@ -166,7 +171,8 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
 
     // Extract text items with accurate typography and bounding boxes
     textContent.items.forEach((item: any, idx: number) => {
-      if (!item.str || item.str.trim() === '') return;
+      const cleanStr = cleanTextForPdf(item.str || '');
+      if (!cleanStr || cleanStr.trim() === '') return;
 
       const transform = item.transform || [1, 0, 0, 1, 0, 0];
       const tx = transform[4];
@@ -205,7 +211,7 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
       textItems.push({
         id: `page-${i - 1}-text-${idx}`,
         pageIndex: i - 1,
-        text: item.str,
+        text: cleanStr,
         x: tx,
         y: ty,
         visualX: visualX,

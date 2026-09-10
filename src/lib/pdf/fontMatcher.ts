@@ -28,6 +28,29 @@ export function cleanPdfFontName(rawName: string): string {
 }
 
 /**
+ * Cleans string for safe, crisp PDF rendering (replaces unicode spaces,
+ * standardizes quotes/dashes, and strips non-printable control characters).
+ */
+export function cleanTextForPdf(text: string): string {
+  if (!text) return '';
+  return text
+    // Replace all unicode space variants with standard ASCII space
+    .replace(/[\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+    // Remove zero-width characters, soft hyphens, byte-order-marks, replacement chars, Private Use Area chars
+    .replace(/[\u200B-\u200D\uFEFF\u00AD\u2060\uFFFD\uE000-\uF8FF]/g, '')
+    // Standardize smart quotes and apostrophes to standard ASCII
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    // Standardize dashes/hyphens
+    .replace(/[\u2013\u2014\u2212]/g, '-')
+    // Standardize ellipsis
+    .replace(/\u2026/g, '...')
+    // Remove non-printable control characters (except newline \n)
+    .replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+    .trimEnd();
+}
+
+/**
  * Parses PDF FontDescriptor /Flags bitmask
  * ISO 32000-1 Table 123 - Font descriptor flags:
  * Bit 1 (1 << 0): FixedPitch
@@ -271,18 +294,96 @@ export function sampleCanvasColor(
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return fallback;
 
-    // Sample a few pixels around the target coordinate
     const sx = Math.max(0, Math.min(canvas.width - 1, Math.round(x)));
     const sy = Math.max(0, Math.min(canvas.height - 1, Math.round(y)));
 
     const pixel = ctx.getImageData(sx, sy, 1, 1).data;
-    if (pixel[3] < 10) return fallback; // Transparent
+    if (pixel[3] < 10) return fallback;
 
     const r = pixel[0].toString(16).padStart(2, '0');
     const g = pixel[1].toString(16).padStart(2, '0');
     const b = pixel[2].toString(16).padStart(2, '0');
 
     return `#${r}${g}${b}`;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Accurately samples the true background color around a text item (avoiding text glyph ink)
+ */
+export function sampleCanvasBackgroundColor(
+  canvas: HTMLCanvasElement | null,
+  bbox: { x: number; y: number; width: number; height: number },
+  canvasScale: number = 2.0,
+  fallback: string = '#ffffff'
+): string {
+  if (!canvas) return fallback;
+  try {
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return fallback;
+
+    // Sample points around the text bounding box (top, bottom, left, right)
+    const points = [
+      // Top edge samples (slightly above text)
+      { x: (bbox.x + bbox.width * 0.2) * canvasScale, y: (bbox.y - 2) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y - 2) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.8) * canvasScale, y: (bbox.y - 2) * canvasScale },
+      // Bottom edge samples (slightly below text)
+      { x: (bbox.x + bbox.width * 0.2) * canvasScale, y: (bbox.y + bbox.height + 2) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y + bbox.height + 2) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.8) * canvasScale, y: (bbox.y + bbox.height + 2) * canvasScale },
+      // Left edge samples
+      { x: (bbox.x - 2) * canvasScale, y: (bbox.y + bbox.height * 0.3) * canvasScale },
+      { x: (bbox.x - 2) * canvasScale, y: (bbox.y + bbox.height * 0.5) * canvasScale },
+      { x: (bbox.x - 2) * canvasScale, y: (bbox.y + bbox.height * 0.7) * canvasScale },
+      // Right edge samples
+      { x: (bbox.x + bbox.width + 2) * canvasScale, y: (bbox.y + bbox.height * 0.3) * canvasScale },
+      { x: (bbox.x + bbox.width + 2) * canvasScale, y: (bbox.y + bbox.height * 0.5) * canvasScale },
+      { x: (bbox.x + bbox.width + 2) * canvasScale, y: (bbox.y + bbox.height * 0.7) * canvasScale },
+    ];
+
+    const sampledColors: { r: number; g: number; b: number; luminance: number }[] = [];
+
+    for (const pt of points) {
+      const sx = Math.max(0, Math.min(canvas.width - 1, Math.round(pt.x)));
+      const sy = Math.max(0, Math.min(canvas.height - 1, Math.round(pt.y)));
+      const p = ctx.getImageData(sx, sy, 1, 1).data;
+      if (p[3] > 20) {
+        const r = p[0];
+        const g = p[1];
+        const b = p[2];
+        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+        sampledColors.push({ r, g, b, luminance });
+      }
+    }
+
+    if (sampledColors.length === 0) return fallback;
+
+    // Sort by luminance to filter out outlier pixels (like dark text ink or border lines)
+    sampledColors.sort((a, b) => a.luminance - b.luminance);
+
+    // Take the middle 60% of samples to reject outlier points
+    const startIdx = Math.floor(sampledColors.length * 0.2);
+    const endIdx = Math.ceil(sampledColors.length * 0.8);
+    const middleSamples = sampledColors.slice(startIdx, endIdx);
+    const useSamples = middleSamples.length > 0 ? middleSamples : sampledColors;
+
+    const avgR = Math.round(useSamples.reduce((sum, c) => sum + c.r, 0) / useSamples.length);
+    const avgG = Math.round(useSamples.reduce((sum, c) => sum + c.g, 0) / useSamples.length);
+    const avgB = Math.round(useSamples.reduce((sum, c) => sum + c.b, 0) / useSamples.length);
+
+    // If genuinely pure white on all channels, return standard '#ffffff'
+    if (avgR >= 253 && avgG >= 253 && avgB >= 253) {
+      return '#ffffff';
+    }
+
+    const rHex = avgR.toString(16).padStart(2, '0');
+    const gHex = avgG.toString(16).padStart(2, '0');
+    const bHex = avgB.toString(16).padStart(2, '0');
+
+    return `#${rHex}${gHex}${bHex}`;
   } catch {
     return fallback;
   }

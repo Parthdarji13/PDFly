@@ -597,7 +597,7 @@
   outline: none;
   resize: none;
   box-sizing: border-box;
-  padding: 2px 4px;
+  padding: 1px 2px;
   margin: 0;
   width: 100%;
   height: 100%;
@@ -607,7 +607,7 @@
 
 .element-text-display {
   box-sizing: border-box;
-  padding: 2px 4px;
+  padding: 1px 2px;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -892,12 +892,12 @@
 
 .text-item-box {
   position: absolute;
-  border: 1px dashed rgba(99, 102, 241, 0.45);
-  background: rgba(99, 102, 241, 0.05);
+  border: 1px dashed transparent;
+  background: transparent;
   border-radius: 2px;
   cursor: text;
   pointer-events: auto;
-  transition: all 0.12s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .text-item-box.subtle {
@@ -906,12 +906,13 @@
 }
 
 .text-item-box:hover {
-  background: rgba(99, 102, 241, 0.22);
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px dashed rgba(99, 102, 241, 0.55);
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.2);
 }
 
 .text-item-box.edited {
+  display: none !important;
   opacity: 0;
   pointer-events: none;
 }
@@ -979,6 +980,69 @@
 .resize-handle.handle-ne { top: -5px; right: -5px; cursor: nesw-resize; }
 .resize-handle.handle-se { bottom: -5px; right: -5px; cursor: nwse-resize; }
 .resize-handle.handle-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+
+/* Floating DONE Action Badge on Active Element */
+.element-done-badge {
+  position: absolute;
+  top: -28px;
+  right: -2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.25);
+  z-index: 100;
+  transition: transform 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.element-done-badge:hover {
+  background: #059669;
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.6);
+}
+
+.element-done-badge:active {
+  transform: scale(0.96);
+}
+
+/* DONE Button in Top Contextual Inspector */
+.inspector-done-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #10b981;
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.inspector-done-btn:hover {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
+}
+
+.inspector-done-btn:active {
+  transform: scale(0.97);
+}
 
 
 

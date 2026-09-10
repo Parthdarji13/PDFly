@@ -87,11 +87,13 @@ export async function getOrEmbedFont(
       }
 
       const embeddedFont = await pdfDoc.embedFont(extracted.data);
+      // Verify that embedded subset font can encode standard text with spaces
+      embeddedFont.encodeText('The quick brown fox jumps 0123456789 -/:');
       fontCache.set(fontKey, embeddedFont);
       return embeddedFont;
     } catch (embedErr) {
       console.warn(
-        `[fontRegistry] Failed to embed custom font bytes for "${extracted.name}". Falling back to "${extracted.fallbackPdfKey}":`,
+        `[fontRegistry] Extracted font subset cannot encode standard glyphs/spaces for "${extracted.name}". Using standard "${extracted.fallbackPdfKey}":`,
         embedErr
       );
       // Fallback to the extracted font's standard fallback key

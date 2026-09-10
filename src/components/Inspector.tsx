@@ -15,6 +15,7 @@ import {
   Sparkles,
   Palette,
   Highlighter,
+  Check,
 } from 'lucide-react';
 import { AppState } from '../lib/state/store';
 import { AVAILABLE_FONTS } from '../lib/pdf/fontMatcher';
@@ -757,6 +758,17 @@ export const Inspector: React.FC<InspectorProps> = ({
           <>
             <div className="inspector-divider" />
             <div className="inspector-group" style={{ marginLeft: 'auto' }}>
+              <button
+                type="button"
+                className="inspector-done-btn"
+                onClick={() =>
+                  onUpdateState((prev) => ({ ...prev, selectedElementId: null }))
+                }
+                title="Finish Editing (Done)"
+              >
+                <Check size={14} strokeWidth={2.5} />
+                <span>DONE</span>
+              </button>
               <button
                 className="inspector-btn-toggle"
                 onClick={onDuplicateSelected}

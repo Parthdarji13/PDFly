@@ -141,7 +141,12 @@ export default function PDFEditorPage() {
           return;
         }
 
-        const { pdfDoc, pageCount, pages, extractedFonts } = await loadPDFDocument(bytes);
+        // Clone bytes so rawPdfBytes is completely detached and immune to any worker transfers
+        const rawBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        const preservedBytes = new Uint8Array(rawBuffer);
+        const engineBytes = new Uint8Array(rawBuffer.slice(0));
+
+        const { pdfDoc, pageCount, pages, extractedFonts } = await loadPDFDocument(engineBytes);
         setPdfDocProxy(pdfDoc);
 
         // Generate thumbnails asynchronously
@@ -160,11 +165,11 @@ export default function PDFEditorPage() {
           ...prev,
           documentState: {
             fileName,
-            fileSize: bytes.byteLength,
+            fileSize: preservedBytes.byteLength,
             pageCount,
             pages: pagesWithThumbs,
             elements: [],
-            rawPdfBytes: bytes,
+            rawPdfBytes: preservedBytes,
             extractedFonts: extractedFonts || {},
           },
           activePageIndex: 0,
