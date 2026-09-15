@@ -1,11 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-
-interface SubscriberRecord {
-  email: string;
-  subscribedAt: string;
-}
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -29,36 +22,56 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Local data storage in data/subscribers.json
-    const dataDir = path.join(process.cwd(), 'data');
-    const filePath = path.join(dataDir, 'subscribers.json');
+    const webhookUrl = process.env.SUBSCRIBE_WEBHOOK_URL || process.env.FORM_WEBHOOK_URL;
 
-    await fs.mkdir(dataDir, { recursive: true });
-
-    let subscribers: SubscriberRecord[] = [];
-    try {
-      const fileContent = await fs.readFile(filePath, 'utf-8');
-      subscribers = JSON.parse(fileContent);
-      if (!Array.isArray(subscribers)) {
-        subscribers = [];
+    if (!webhookUrl) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(
+          `[Newsletter Subscribe] Dev mode warning: SUBSCRIBE_WEBHOOK_URL is not set. Simulating subscription for: ${email}`
+        );
+        return NextResponse.json({
+          success: true,
+          message: 'You have been successfully subscribed to PDFly updates!',
+        });
       }
-    } catch {
-      subscribers = [];
+
+      console.error(
+        '[Newsletter Subscribe Error]: SUBSCRIBE_WEBHOOK_URL environment variable is not configured.'
+      );
+      return NextResponse.json(
+        { success: false, error: 'Subscription service is temporarily unavailable. Please try again later.' },
+        { status: 503 }
+      );
     }
 
-    const alreadySubscribed = subscribers.some((s) => s.email === email);
-
-    if (!alreadySubscribed) {
-      subscribers.push({
+    // Forward subscriber submission to the configured webhook service (Formspree, Google Sheets Apps Script, etc.)
+    const webhookResponse = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
         email,
+        source: 'PDFly Newsletter',
         subscribedAt: new Date().toISOString(),
-      });
+      }),
+      redirect: 'follow',
+    });
 
-      await fs.writeFile(filePath, JSON.stringify(subscribers, null, 2), 'utf-8');
-      console.log(`[Newsletter Subscribe] New subscriber captured: ${email}`);
-    } else {
-      console.log(`[Newsletter Subscribe] Existing subscriber re-submitted: ${email}`);
+    if (!webhookResponse.ok) {
+      const responseText = await webhookResponse.text().catch(() => '');
+      console.error(
+        `[Newsletter Subscribe Error] Webhook responded with HTTP ${webhookResponse.status}:`,
+        responseText
+      );
+      return NextResponse.json(
+        { success: false, error: 'Failed to process subscription. Please try again later.' },
+        { status: 502 }
+      );
     }
+
+    console.log(`[Newsletter Subscribe] Successfully dispatched subscriber: ${email}`);
 
     return NextResponse.json({
       success: true,

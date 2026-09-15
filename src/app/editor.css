@@ -926,6 +926,12 @@
   cursor: crosshair !important;
 }
 
+/* In draw/highlighter mode, existing elements should not intercept mouse — let strokes pass through */
+.canvas-viewport.tool-draw .element-wrapper,
+.canvas-viewport.tool-highlighter .element-wrapper {
+  pointer-events: none !important;
+}
+
 .canvas-viewport.tool-highlighter,
 .canvas-viewport.tool-highlighter .page-container,
 .canvas-viewport.tool-highlighter .elements-overlay {

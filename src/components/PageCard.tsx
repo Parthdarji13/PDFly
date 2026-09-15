@@ -155,7 +155,10 @@ export const PageCard: React.FC<PageCardProps> = ({
       text: cleanTextForPdf(textItem.text),
       fontFamily: textItem.fontFamily,
       pdfFontKey: textItem.pdfFontKey,
-      fontSize: textItem.fontSize,
+      fontSize:
+        textItem.fontSize && !isNaN(textItem.fontSize) && textItem.fontSize > 0
+          ? textItem.fontSize
+          : 14,
       fontWeight: textItem.fontWeight,
       fontStyle: textItem.fontStyle,
       underline: false,
@@ -548,6 +551,7 @@ export const PageCard: React.FC<PageCardProps> = ({
                   height: `${item.height * scale}px`,
                 }}
                 onClick={(e) => handleOriginalTextClick(item, e)}
+                onMouseDown={(e) => e.stopPropagation()}
                 title="Click to edit this text"
               >
                 {/* Font Info Tooltip */}
@@ -561,47 +565,44 @@ export const PageCard: React.FC<PageCardProps> = ({
         </div>
       )}
 
-      {/* User Added / Modified Elements Overlay */}
-      <div
-        className="elements-overlay"
-        style={{
-          pointerEvents:
-            state.selectedTool === 'draw' || state.selectedTool === 'highlighter'
-              ? 'none'
-              : 'auto',
-        }}
-      >
+      {/* User Added / Modified Elements Overlay — container is always pointer-events:none; 
+          .element-wrapper children handle their own pointer-events via CSS */}
+      <div className="elements-overlay">
         {pageElements.map((el) => {
           const isSelected = state.selectedElementId === el.id;
 
           return (
             <div
               key={el.id}
-              className={`element-wrapper ${isSelected ? 'selected' : ''}`}
+              className={`element-wrapper ${
+                // Text elements: never show blue selection box — seamless editing
+                el.type === 'text' ? '' : isSelected ? 'selected' : ''
+              }`}
               style={{
                 left: `${el.x * scale}px`,
                 top: `${el.y * scale}px`,
-                width: `${el.width * scale}px`,
-                height: `${el.height * scale}px`,
+                width: `${Math.max(20, el.width) * scale}px`,
+                height: `${Math.max(16, el.height) * scale}px`,
                 zIndex: el.zIndex,
                 opacity: el.opacity ?? 1,
+                // Text elements use text cursor, not move cursor
+                cursor: el.type === 'text' ? 'text' : undefined,
               }}
               onMouseDown={(e) => handleElementMouseDown(el, e)}
             >
-              {/* ================= Element: Text ================= */}
               {el.type === 'text' && (
                 isSelected ? (
                   <textarea
                     id={`text-el-${el.id}`}
                     className="element-text-textarea"
                     value={(el as TextElement).text}
-                    placeholder="Type text..."
                     autoFocus
                     style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
                       width: '100%',
                       height: '100%',
-                      minWidth: '100%',
-                      minHeight: '100%',
                       fontFamily: (el as TextElement).fontFamily,
                       fontSize: `${(el as TextElement).fontSize * scale}px`,
                       fontWeight: (el as TextElement).fontWeight,
@@ -609,12 +610,15 @@ export const PageCard: React.FC<PageCardProps> = ({
                       textDecoration: (el as TextElement).underline ? 'underline' : 'none',
                       color: (el as TextElement).color || '#0f172a',
                       textAlign: (el as TextElement).align || 'left',
-                      lineHeight: (el as TextElement).lineHeight || 1.25,
-                      backgroundColor: (el as TextElement).backgroundColor || 'transparent',
-                      padding: '2px 4px',
+                      lineHeight: String((el as TextElement).lineHeight || 1.25),
+                      letterSpacing: `${(el as TextElement).letterSpacing || 0}px`,
+                      // Use sampled background so original canvas text is hidden seamlessly
+                      backgroundColor: (el as TextElement).backgroundColor || '#ffffff',
+                      padding: '0px',
                       margin: 0,
                       border: 'none',
                       outline: 'none',
+                      boxShadow: 'none',
                       resize: 'none',
                       overflow: 'visible',
                       boxSizing: 'border-box',
@@ -622,17 +626,27 @@ export const PageCard: React.FC<PageCardProps> = ({
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       display: 'block',
+                      // Inherit background without browser textarea default styling
+                      WebkitAppearance: 'none',
+                      appearance: 'none',
                     }}
                     onChange={(e) => {
                       const newText = e.target.value;
                       const textEl = el as TextElement;
+                      // Guard against NaN/0/undefined fontSize — collapses the element to 0px on first keystroke
+                      const safeFontSize =
+                        textEl.fontSize && !isNaN(textEl.fontSize) && textEl.fontSize > 0
+                          ? textEl.fontSize
+                          : 14;
                       const lines = newText.split('\n');
                       const lineCount = lines.length;
-                      const approxLineHeight = textEl.fontSize * (textEl.lineHeight || 1.25);
-                      const estHeight = Math.max(textEl.height, lineCount * approxLineHeight + 10);
-                      
+                      const approxLineHeight = safeFontSize * (textEl.lineHeight || 1.25);
+                      const estHeightRaw = Math.max(textEl.height || 0, lineCount * approxLineHeight + 10);
                       const maxLineLen = Math.max(...lines.map((l) => l.length), 1);
-                      const estWidth = Math.max(textEl.width, maxLineLen * (textEl.fontSize * 0.6) + 16);
+                      const estWidthRaw = Math.max(textEl.width || 0, maxLineLen * (safeFontSize * 0.6) + 16);
+                      // Clamp to sane minimums regardless of any NaN/negative inputs
+                      const estHeight = Math.max(20, isFinite(estHeightRaw) ? estHeightRaw : 20);
+                      const estWidth = Math.max(40, isFinite(estWidthRaw) ? estWidthRaw : 40);
 
                       onUpdateElement(el.id, {
                         text: newText,
@@ -647,17 +661,14 @@ export const PageCard: React.FC<PageCardProps> = ({
                         e.currentTarget.blur();
                         onSelectElement(null);
                       }
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        e.currentTarget.blur();
-                        onSelectElement(null);
-                      }
+                      // Allow Enter to insert newlines — only Escape deselects
                     }}
                     onKeyUp={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                     onBlur={(e) => {
                       onUpdateElement(el.id, { text: e.target.value });
+                      onSelectElement(null);
                     }}
                   />
                 ) : (
@@ -665,6 +676,9 @@ export const PageCard: React.FC<PageCardProps> = ({
                     id={`text-el-${el.id}`}
                     className="element-text-display"
                     style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
                       width: '100%',
                       height: '100%',
                       fontFamily: (el as TextElement).fontFamily,
@@ -674,28 +688,29 @@ export const PageCard: React.FC<PageCardProps> = ({
                       textDecoration: (el as TextElement).underline ? 'underline' : 'none',
                       color: (el as TextElement).color || '#0f172a',
                       textAlign: (el as TextElement).align || 'left',
-                      lineHeight: (el as TextElement).lineHeight || 1.25,
-                      backgroundColor: (el as TextElement).backgroundColor || 'transparent',
-                      padding: '2px 4px',
+                      lineHeight: String((el as TextElement).lineHeight || 1.25),
+                      letterSpacing: `${(el as TextElement).letterSpacing || 0}px`,
+                      // Background covers original canvas text — makes edit invisible
+                      backgroundColor: (el as TextElement).backgroundColor || '#ffffff',
+                      padding: '0px',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
-                      cursor: 'move',
+                      cursor: 'text',
                       userSelect: 'none',
                       boxSizing: 'border-box',
                       overflow: 'visible',
                     }}
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectElement(el.id);
-                    }}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      onSelectElement(el.id);
+                      setTimeout(() => {
+                        const ta = document.getElementById(`text-el-${el.id}`) as HTMLTextAreaElement | null;
+                        if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+                      }, 30);
                     }}
                   >
-                    {(el as TextElement).text || (
-                      <span style={{ opacity: 0.35, fontStyle: 'italic' }}>(Empty text)</span>
-                    )}
+                    {(el as TextElement).text}
                   </div>
                 )
               )}
@@ -831,8 +846,8 @@ export const PageCard: React.FC<PageCardProps> = ({
                 />
               )}
 
-              {/* Floating DONE Button on Selected Element */}
-              {isSelected && (
+              {/* Floating DONE Button — only for non-text elements (shapes, images, etc.) */}
+              {isSelected && el.type !== 'text' && (
                 <button
                   type="button"
                   className="element-done-badge"
@@ -853,8 +868,8 @@ export const PageCard: React.FC<PageCardProps> = ({
                 </button>
               )}
 
-              {/* Resize Handles (When selected) */}
-              {isSelected && (state.selectedTool === 'select' || state.selectedTool === 'editText') && (
+              {/* Resize Handles — only for non-text elements; text resizes automatically */}
+              {isSelected && el.type !== 'text' && (state.selectedTool === 'select' || state.selectedTool === 'editText') && (
                 <>
                   <div
                     className="resize-handle handle-nw"

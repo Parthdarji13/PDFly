@@ -69,7 +69,20 @@ cp .env.example .env.local
 # Google Gemini API Key
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-3.5-flash
+
+# Newsletter / Email Capture Webhook (Required for production on Vercel)
+# Formspree endpoint (free) or Google Apps Script Web App (free unlimited Google Sheets):
+SUBSCRIBE_WEBHOOK_URL=https://formspree.io/f/your_form_id
 ```
+
+### Production Deployment on Vercel
+On Vercel's serverless platform, the local disk is read-only and ephemeral. Subscriber submissions via `/api/subscribe` are forwarded via HTTP POST to `SUBSCRIBE_WEBHOOK_URL`.
+
+To configure in production:
+1. In your [Vercel Dashboard](https://vercel.com), navigate to your PDFly project.
+2. Go to **Settings** > **Environment Variables**.
+3. Add `SUBSCRIBE_WEBHOOK_URL` with your free Formspree endpoint or Google Apps Script Webhook URL.
+4. Add `GEMINI_API_KEY` for AI features.
 
 ---
 
