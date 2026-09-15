@@ -196,8 +196,14 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
 
       const fontSize = calculateFontSizeFromTransform(transform, itemHeight);
 
-      // Convert PDF coordinate system (origin bottom-left) to visual top-left
-      const visualY = viewport.height - ty - fontSize;
+      // In PDF typography, ty is the text baseline.
+      // Ascender extends above baseline (typically ~0.82 * fontSize), descender extends below (~0.25 * fontSize).
+      const ascentRatio = fontObjInfo?.ascent && fontObjInfo.ascent > 500 ? fontObjInfo.ascent / 1000 : 0.82;
+      const ascenderHeight = fontSize * Math.min(1.0, Math.max(0.7, ascentRatio));
+      const boxHeight = Math.max(fontSize * 1.18, itemHeight);
+
+      // Convert PDF coordinate system (origin bottom-left baseline) to visual top-left
+      const visualY = viewport.height - ty - ascenderHeight;
       const visualX = tx;
 
       const displayFontFamily = isEmbedded
@@ -217,7 +223,7 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
         visualX: visualX,
         visualY: Math.max(0, visualY),
         width: itemWidth > 0 ? itemWidth : item.str.length * (fontSize * 0.6),
-        height: Math.max(fontSize, itemHeight),
+        height: boxHeight,
         fontName: item.fontName || '',
         cleanFontName: fontObjInfo?.cleanName || cleanPdfFontName(item.fontName || ''),
         fontFamily: displayFontFamily,

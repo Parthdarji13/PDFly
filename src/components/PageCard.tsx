@@ -131,8 +131,17 @@ export const PageCard: React.FC<PageCardProps> = ({
 
     if (existingEl) {
       onSelectElement(existingEl.id);
+      setTimeout(() => {
+        const elDom = document.getElementById(`text-el-${existingEl.id}`) as HTMLTextAreaElement | null;
+        if (elDom) {
+          elDom.focus();
+        }
+      }, 50);
       return;
     }
+
+    const initialW = Math.max(80, Math.round(textItem.width + 16));
+    const initialH = Math.max(26, Math.round(textItem.height + 6));
 
     // Create an editable text element matching the original font & size!
     const newTextElement: TextElement = {
@@ -141,8 +150,8 @@ export const PageCard: React.FC<PageCardProps> = ({
       type: 'text',
       x: textItem.visualX,
       y: textItem.visualY,
-      width: Math.max(textItem.width + 8, textItem.width * 1.02),
-      height: Math.max(textItem.height + 2, textItem.height),
+      width: initialW,
+      height: initialH,
       text: cleanTextForPdf(textItem.text),
       fontFamily: textItem.fontFamily,
       pdfFontKey: textItem.pdfFontKey,
@@ -152,7 +161,7 @@ export const PageCard: React.FC<PageCardProps> = ({
       underline: false,
       color: textColor,
       align: 'left',
-      lineHeight: 1.2,
+      lineHeight: 1.25,
       letterSpacing: 0,
       backgroundColor: sampledBg,
       isOriginalEdit: true,
@@ -209,7 +218,7 @@ export const PageCard: React.FC<PageCardProps> = ({
         x: pt.x,
         y: pt.y,
         width: 180,
-        height: 36,
+        height: 38,
         text: 'Type text here...',
         fontFamily: state.activeTextConfig.fontFamily,
         pdfFontKey: state.activeTextConfig.pdfFontKey,
@@ -286,11 +295,73 @@ export const PageCard: React.FC<PageCardProps> = ({
       return;
     }
 
-    // Clicking empty space in Select mode deselects
-    if (state.selectedTool === 'select') {
+    // Clicking empty space in Select or EditText mode deselects
+    if (state.selectedTool === 'select' || state.selectedTool === 'editText') {
       onSelectElement(null);
     }
   };
+
+  // Global window listener to guarantee drag/draw cleanup when mouse is released anywhere
+  useEffect(() => {
+    if (!draggedElementId && !isDrawing && !resizingHandle) return;
+
+    const handleGlobalRelease = () => {
+      if (isDrawing && currentStroke.length >= 1) {
+        const isHighlighter = state.selectedTool === 'highlighter';
+        const strokePoints =
+          currentStroke.length === 1
+            ? [currentStroke[0], { x: currentStroke[0].x + 0.1, y: currentStroke[0].y + 0.1 }]
+            : currentStroke;
+
+        const newDrawEl: DrawElement = {
+          id: `draw-${Date.now()}`,
+          pageIndex: pageIndex,
+          type: 'draw',
+          points: strokePoints,
+          strokeColor: isHighlighter
+            ? state.activeDrawConfig.highlighterColor
+            : state.activeDrawConfig.strokeColor,
+          strokeWidth: isHighlighter
+            ? state.activeDrawConfig.highlighterWidth
+            : state.activeDrawConfig.strokeWidth,
+          isHighlighter: isHighlighter,
+          x: 0,
+          y: 0,
+          width: page.width,
+          height: page.height,
+          zIndex: pageElements.length + 1,
+          opacity: isHighlighter ? 0.35 : 1,
+        };
+        onAddElement(newDrawEl, isHighlighter ? 'Added highlight stroke' : 'Added drawing stroke');
+      }
+
+      setIsDrawing(false);
+      setCurrentStroke([]);
+      setDraggedElementId(null);
+      setDragStart(null);
+      setResizingHandle(null);
+      setInitialElBox(null);
+    };
+
+    window.addEventListener('mouseup', handleGlobalRelease);
+    window.addEventListener('touchend', handleGlobalRelease);
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalRelease);
+      window.removeEventListener('touchend', handleGlobalRelease);
+    };
+  }, [
+    draggedElementId,
+    isDrawing,
+    resizingHandle,
+    currentStroke,
+    pageIndex,
+    state.selectedTool,
+    state.activeDrawConfig,
+    page.width,
+    page.height,
+    pageElements.length,
+    onAddElement,
+  ]);
 
   // Mouse Move Event on Page Card
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -302,10 +373,15 @@ export const PageCard: React.FC<PageCardProps> = ({
       return;
     }
 
-    // Dragging an existing element
+    // Dragging / Resizing an existing element
     if (draggedElementId && dragStart && initialElBox) {
       const deltaX = pt.x - dragStart.x;
       const deltaY = pt.y - dragStart.y;
+
+      // Minimum movement threshold to avoid micro jitter and continuous render calls
+      if (Math.abs(deltaX) < 0.25 && Math.abs(deltaY) < 0.25) {
+        return;
+      }
 
       if (resizingHandle) {
         // Resizing
@@ -333,16 +409,23 @@ export const PageCard: React.FC<PageCardProps> = ({
         }
 
         onUpdateElement(draggedElementId, {
-          x: newX,
-          y: newY,
-          width: newWidth,
-          height: newHeight,
+          x: Math.round(newX),
+          y: Math.round(newY),
+          width: Math.round(newWidth),
+          height: Math.round(newHeight),
         });
       } else {
         // Moving
+        const targetX = Math.round(
+          Math.max(0, Math.min(page.width - initialElBox.width, initialElBox.x + deltaX))
+        );
+        const targetY = Math.round(
+          Math.max(0, Math.min(page.height - initialElBox.height, initialElBox.y + deltaY))
+        );
+
         onUpdateElement(draggedElementId, {
-          x: Math.max(0, Math.min(page.width - initialElBox.width, initialElBox.x + deltaX)),
-          y: Math.max(0, Math.min(page.height - initialElBox.height, initialElBox.y + deltaY)),
+          x: targetX,
+          y: targetY,
         });
       }
     }
@@ -378,9 +461,6 @@ export const PageCard: React.FC<PageCardProps> = ({
         opacity: isHighlighter ? 0.35 : 1,
       };
       onAddElement(newDrawEl, isHighlighter ? 'Added highlight stroke' : 'Added drawing stroke');
-      setIsDrawing(false);
-      setCurrentStroke([]);
-      return;
     }
 
     setIsDrawing(false);
@@ -393,13 +473,14 @@ export const PageCard: React.FC<PageCardProps> = ({
 
   // Start element move
   const handleElementMouseDown = (el: EditorElement, e: React.MouseEvent) => {
-    if (state.selectedTool !== 'select') return;
     e.stopPropagation();
     onSelectElement(el.id);
-    setDraggedElementId(el.id);
-    const pt = getPdfCoordinates(e);
-    setDragStart(pt);
-    setInitialElBox({ x: el.x, y: el.y, width: el.width, height: el.height });
+    if (state.selectedTool !== 'draw' && state.selectedTool !== 'highlighter') {
+      setDraggedElementId(el.id);
+      const pt = getPdfCoordinates(e);
+      setDragStart(pt);
+      setInitialElBox({ x: el.x, y: el.y, width: el.width, height: el.height });
+    }
   };
 
   // Start element resize
@@ -450,28 +531,33 @@ export const PageCard: React.FC<PageCardProps> = ({
       {/* Text Detection Overlay Layer (Active in 'editText' and 'select' mode) */}
       {(state.selectedTool === 'editText' || state.selectedTool === 'select') && (
         <div className="text-detection-layer">
-          {page.textItems.map((item) => (
-            <div
-              key={item.id}
-              className={`text-item-box ${state.selectedTool === 'select' ? 'subtle' : ''} ${
-                item.isEdited ? 'edited' : ''
-              }`}
-              style={{
-                left: `${item.visualX * scale}px`,
-                top: `${item.visualY * scale}px`,
-                width: `${item.width * scale}px`,
-                height: `${item.height * scale}px`,
-              }}
-              onClick={(e) => handleOriginalTextClick(item, e)}
-              title="Click to edit this text"
-            >
-              {/* Font Info Tooltip */}
-              <div className="text-font-tooltip">
-                {item.isEmbeddedFont ? '⭐ Original Font: ' : '⚡ Closest Match: '}
-                {item.cleanFontName || item.fontFamily} {Math.round(item.fontSize)}pt
+          {page.textItems.map((item) => {
+            const isItemEdited = pageElements.some(
+              (el) => el.type === 'text' && (el as TextElement).originalTextId === item.id
+            );
+            if (isItemEdited) return null;
+
+            return (
+              <div
+                key={item.id}
+                className={`text-item-box ${state.selectedTool === 'select' ? 'subtle' : ''}`}
+                style={{
+                  left: `${item.visualX * scale}px`,
+                  top: `${item.visualY * scale}px`,
+                  width: `${item.width * scale}px`,
+                  height: `${item.height * scale}px`,
+                }}
+                onClick={(e) => handleOriginalTextClick(item, e)}
+                title="Click to edit this text"
+              >
+                {/* Font Info Tooltip */}
+                <div className="text-font-tooltip">
+                  {item.isEmbeddedFont ? '⭐ Original Font: ' : '⚡ Closest Match: '}
+                  {item.cleanFontName || item.fontFamily} {Math.round(item.fontSize)}pt
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -514,6 +600,8 @@ export const PageCard: React.FC<PageCardProps> = ({
                     style={{
                       width: '100%',
                       height: '100%',
+                      minWidth: '100%',
+                      minHeight: '100%',
                       fontFamily: (el as TextElement).fontFamily,
                       fontSize: `${(el as TextElement).fontSize * scale}px`,
                       fontWeight: (el as TextElement).fontWeight,
@@ -521,14 +609,14 @@ export const PageCard: React.FC<PageCardProps> = ({
                       textDecoration: (el as TextElement).underline ? 'underline' : 'none',
                       color: (el as TextElement).color || '#0f172a',
                       textAlign: (el as TextElement).align || 'left',
-                      lineHeight: (el as TextElement).lineHeight || 1.2,
+                      lineHeight: (el as TextElement).lineHeight || 1.25,
                       backgroundColor: (el as TextElement).backgroundColor || 'transparent',
-                      padding: '1px 2px',
+                      padding: '2px 4px',
                       margin: 0,
                       border: 'none',
                       outline: 'none',
                       resize: 'none',
-                      overflow: 'hidden',
+                      overflow: 'visible',
                       boxSizing: 'border-box',
                       cursor: 'text',
                       whiteSpace: 'pre-wrap',
@@ -536,7 +624,21 @@ export const PageCard: React.FC<PageCardProps> = ({
                       display: 'block',
                     }}
                     onChange={(e) => {
-                      onUpdateElement(el.id, { text: e.target.value });
+                      const newText = e.target.value;
+                      const textEl = el as TextElement;
+                      const lines = newText.split('\n');
+                      const lineCount = lines.length;
+                      const approxLineHeight = textEl.fontSize * (textEl.lineHeight || 1.25);
+                      const estHeight = Math.max(textEl.height, lineCount * approxLineHeight + 10);
+                      
+                      const maxLineLen = Math.max(...lines.map((l) => l.length), 1);
+                      const estWidth = Math.max(textEl.width, maxLineLen * (textEl.fontSize * 0.6) + 16);
+
+                      onUpdateElement(el.id, {
+                        text: newText,
+                        height: Math.round(estHeight),
+                        width: Math.round(estWidth),
+                      });
                     }}
                     onKeyDown={(e) => {
                       // Stop propagation so global shortcuts (v, e, t, p, Backspace delete, etc.) NEVER interfere!
@@ -572,17 +674,21 @@ export const PageCard: React.FC<PageCardProps> = ({
                       textDecoration: (el as TextElement).underline ? 'underline' : 'none',
                       color: (el as TextElement).color || '#0f172a',
                       textAlign: (el as TextElement).align || 'left',
-                      lineHeight: (el as TextElement).lineHeight || 1.2,
+                      lineHeight: (el as TextElement).lineHeight || 1.25,
                       backgroundColor: (el as TextElement).backgroundColor || 'transparent',
-                      padding: '1px 2px',
+                      padding: '2px 4px',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       cursor: 'move',
                       userSelect: 'none',
                       boxSizing: 'border-box',
-                      overflow: 'hidden',
+                      overflow: 'visible',
                     }}
                     onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectElement(el.id);
+                    }}
+                    onDoubleClick={(e) => {
                       e.stopPropagation();
                       onSelectElement(el.id);
                     }}
@@ -747,8 +853,8 @@ export const PageCard: React.FC<PageCardProps> = ({
                 </button>
               )}
 
-              {/* Resize Handles (When selected in select tool) */}
-              {isSelected && state.selectedTool === 'select' && (
+              {/* Resize Handles (When selected) */}
+              {isSelected && (state.selectedTool === 'select' || state.selectedTool === 'editText') && (
                 <>
                   <div
                     className="resize-handle handle-nw"

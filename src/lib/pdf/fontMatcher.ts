@@ -38,6 +38,8 @@ export function cleanTextForPdf(text: string): string {
     .replace(/[\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
     // Remove zero-width characters, soft hyphens, byte-order-marks, replacement chars, Private Use Area chars
     .replace(/[\u200B-\u200D\uFEFF\u00AD\u2060\uFFFD\uE000-\uF8FF]/g, '')
+    // Standardize bullet variants to standard bullet/dash
+    .replace(/[\u2022\u2023\u25E6\u25AA\u25AB\u2219]/g, '•')
     // Standardize smart quotes and apostrophes to standard ASCII
     .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
     .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
@@ -324,24 +326,26 @@ export function sampleCanvasBackgroundColor(
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return fallback;
 
-    // Sample points around the text bounding box (top, bottom, left, right)
+    // Sample points around the text bounding box (top, bottom, left, right) at multiple margin depths
     const points = [
       // Top edge samples (slightly above text)
-      { x: (bbox.x + bbox.width * 0.2) * canvasScale, y: (bbox.y - 2) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y - 2) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.8) * canvasScale, y: (bbox.y - 2) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.2) * canvasScale, y: (bbox.y - 3) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y - 3) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.8) * canvasScale, y: (bbox.y - 3) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y - 6) * canvasScale },
       // Bottom edge samples (slightly below text)
-      { x: (bbox.x + bbox.width * 0.2) * canvasScale, y: (bbox.y + bbox.height + 2) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y + bbox.height + 2) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.8) * canvasScale, y: (bbox.y + bbox.height + 2) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.2) * canvasScale, y: (bbox.y + bbox.height + 3) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y + bbox.height + 3) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.8) * canvasScale, y: (bbox.y + bbox.height + 3) * canvasScale },
+      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y + bbox.height + 6) * canvasScale },
       // Left edge samples
-      { x: (bbox.x - 2) * canvasScale, y: (bbox.y + bbox.height * 0.3) * canvasScale },
-      { x: (bbox.x - 2) * canvasScale, y: (bbox.y + bbox.height * 0.5) * canvasScale },
-      { x: (bbox.x - 2) * canvasScale, y: (bbox.y + bbox.height * 0.7) * canvasScale },
+      { x: (bbox.x - 3) * canvasScale, y: (bbox.y + bbox.height * 0.3) * canvasScale },
+      { x: (bbox.x - 3) * canvasScale, y: (bbox.y + bbox.height * 0.5) * canvasScale },
+      { x: (bbox.x - 3) * canvasScale, y: (bbox.y + bbox.height * 0.7) * canvasScale },
       // Right edge samples
-      { x: (bbox.x + bbox.width + 2) * canvasScale, y: (bbox.y + bbox.height * 0.3) * canvasScale },
-      { x: (bbox.x + bbox.width + 2) * canvasScale, y: (bbox.y + bbox.height * 0.5) * canvasScale },
-      { x: (bbox.x + bbox.width + 2) * canvasScale, y: (bbox.y + bbox.height * 0.7) * canvasScale },
+      { x: (bbox.x + bbox.width + 3) * canvasScale, y: (bbox.y + bbox.height * 0.3) * canvasScale },
+      { x: (bbox.x + bbox.width + 3) * canvasScale, y: (bbox.y + bbox.height * 0.5) * canvasScale },
+      { x: (bbox.x + bbox.width + 3) * canvasScale, y: (bbox.y + bbox.height * 0.7) * canvasScale },
     ];
 
     const sampledColors: { r: number; g: number; b: number; luminance: number }[] = [];

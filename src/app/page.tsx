@@ -368,41 +368,53 @@ export default function PDFEditorPage() {
             setIsAiTextAssistOpen(true);
           }
           return;
-      }
 
-      // If no document is loaded, open Studio with a clean blank page (NEVER a sample template)
-      if (state.documentState.pages.length === 0) {
-        await handleLoadSample('blank');
-        if (toolId === 'redact') {
-          setState((prev) => ({ ...prev, selectedTool: 'redact' }));
-        } else if (toolId === 'organize') {
-          setState((prev) => ({ ...prev, isOrganizerModalOpen: true }));
-        } else if (toolId === 'searchReplace') {
-          setState((prev) => ({ ...prev, isSearchModalOpen: true }));
-        } else {
-          setState((prev) => ({ ...prev, selectedTool: 'editText' }));
-        }
-        return;
+        case 'edit':
+          if (state.documentState.pages.length === 0) {
+            pendingToolRef.current = 'edit';
+            pdfFileInputRef.current?.click();
+            showToast('Please select a PDF document to edit.', 'info');
+          } else {
+            setCurrentView('editor');
+            setState((prev) => ({ ...prev, selectedTool: 'editText' }));
+            showToast('Click any text on the page to edit it directly with matched fonts!', 'info');
+          }
+          return;
+        case 'organize':
+          if (state.documentState.pages.length === 0) {
+            pendingToolRef.current = 'organize';
+            pdfFileInputRef.current?.click();
+            showToast('Please select a PDF document to organize pages.', 'info');
+          } else {
+            setCurrentView('editor');
+            setState((prev) => ({ ...prev, isOrganizerModalOpen: true }));
+          }
+          return;
+        case 'redact':
+          if (state.documentState.pages.length === 0) {
+            pendingToolRef.current = 'redact';
+            pdfFileInputRef.current?.click();
+            showToast('Please select a PDF document to redact.', 'info');
+          } else {
+            setCurrentView('editor');
+            setState((prev) => ({ ...prev, selectedTool: 'redact' }));
+            showToast('Click or drag over text or areas to redact sensitive content.', 'info');
+          }
+          return;
+        case 'searchReplace':
+          if (state.documentState.pages.length === 0) {
+            pendingToolRef.current = 'searchReplace';
+            pdfFileInputRef.current?.click();
+            showToast('Please select a PDF document to search and replace text.', 'info');
+          } else {
+            setCurrentView('editor');
+            setState((prev) => ({ ...prev, isSearchModalOpen: true }));
+          }
+          return;
       }
 
       // If document is already loaded, open directly in editor
       setCurrentView('editor');
-      switch (toolId) {
-        case 'edit':
-          setState((prev) => ({ ...prev, selectedTool: 'editText' }));
-          showToast('Click any text on the page to edit it directly with matched fonts!', 'info');
-          break;
-        case 'organize':
-          setState((prev) => ({ ...prev, isOrganizerModalOpen: true }));
-          break;
-        case 'redact':
-          setState((prev) => ({ ...prev, selectedTool: 'redact' }));
-          showToast('Click or drag over text or areas to redact sensitive content.', 'info');
-          break;
-        case 'searchReplace':
-          setState((prev) => ({ ...prev, isSearchModalOpen: true }));
-          break;
-      }
     },
     [handleLoadSample, showToast, state.documentState.pages.length]
   );
@@ -480,18 +492,33 @@ export default function PDFEditorPage() {
     [pushHistory, showToast]
   );
 
-  // Update element properties
+  // Update element properties (safeguarded against duplicate updates & loops)
   const handleUpdateElement = useCallback(
     (id: string, updates: Partial<EditorElement>) => {
-      setState((prev) => ({
-        ...prev,
-        documentState: {
-          ...prev.documentState,
-          elements: prev.documentState.elements.map((el) =>
-            el.id === id ? ({ ...el, ...updates } as EditorElement) : el
-          ),
-        },
-      }));
+      setState((prev) => {
+        const target = prev.documentState.elements.find((el) => el.id === id);
+        if (!target) return prev;
+
+        // Check if any property actually changed
+        let hasChange = false;
+        for (const [key, value] of Object.entries(updates)) {
+          if ((target as any)[key] !== value) {
+            hasChange = true;
+            break;
+          }
+        }
+        if (!hasChange) return prev;
+
+        return {
+          ...prev,
+          documentState: {
+            ...prev.documentState,
+            elements: prev.documentState.elements.map((el) =>
+              el.id === id ? ({ ...el, ...updates } as EditorElement) : el
+            ),
+          },
+        };
+      });
     },
     []
   );

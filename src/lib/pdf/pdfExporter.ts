@@ -143,14 +143,15 @@ async function renderTextElement(
   fontCache: Map<string, PDFFont>,
   extractedFonts?: Record<string, ExtractedFontInfo>
 ) {
-  // If this text replaced an original text item, draw a concealment background patch over the original text
+  // 1. If this text replaced an original text item, draw a concealment background patch covering full glyph bounding box
   if (el.isOriginalEdit && el.originalBBox) {
     const bbox = el.originalBBox;
-    const patchX = Math.max(0, bbox.x);
-    // Convert visual Y from top to PDF Y from bottom
-    const patchY = pageHeight - bbox.y - bbox.height;
-    const patchW = bbox.width;
-    const patchH = bbox.height;
+    const padX = 3;
+    const padY = 2;
+    const patchX = Math.max(0, bbox.x - padX);
+    const patchY = Math.max(0, pageHeight - (bbox.y + bbox.height) - padY);
+    const patchW = bbox.width + padX * 2;
+    const patchH = bbox.height + padY * 2;
 
     page.drawRectangle({
       x: patchX,
@@ -161,10 +162,10 @@ async function renderTextElement(
       opacity: 1,
     });
   } else if (el.backgroundColor && el.backgroundColor !== 'transparent') {
-    // Custom text background
-    const bgY = pageHeight - el.y - el.height;
+    // Custom text background patch
+    const bgY = Math.max(0, pageHeight - (el.y + el.height));
     page.drawRectangle({
-      x: el.x,
+      x: Math.max(0, el.x),
       y: bgY,
       width: el.width,
       height: el.height,
@@ -214,12 +215,6 @@ async function renderTextElement(
         : 'Helvetica-Oblique';
     }
 
-    if (el.isEmbeddedFont) {
-      console.warn(
-        `[pdfExporter] Element ${el.id}: embedded font "${el.embeddedFontId || el.fontFamily}" not available, using fallback ${fallbackFontKey}`
-      );
-    }
-
     try {
       font = await getOrEmbedFont(pdfDoc, fallbackFontKey, fontCache);
     } catch (err) {
@@ -240,7 +235,8 @@ async function renderTextElement(
   let currentVisualY = el.y;
 
   for (let i = 0; i < textLines.length; i++) {
-    const line = cleanTextForPdf(textLines[i]);
+    const rawLine = textLines[i];
+    const line = cleanTextForPdf(rawLine);
     if (line.length === 0) {
       currentVisualY += lineHeight;
       continue;
@@ -248,33 +244,42 @@ async function renderTextElement(
 
     let activeFont = font;
     let textWidth = 0;
+    let safeLine = line;
 
+    // Test font encoding & calculate text width
     try {
-      // Test if active font can cleanly encode the text
-      activeFont.encodeText(line);
-      textWidth = activeFont.widthOfTextAtSize(line, fontSize);
+      activeFont.encodeText(safeLine);
+      textWidth = activeFont.widthOfTextAtSize(safeLine, fontSize);
     } catch {
+      // If active embedded font lacks glyphs in subset, fallback to Standard Helvetica
       try {
         activeFont = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
-        textWidth = activeFont.widthOfTextAtSize(line, fontSize);
+        activeFont.encodeText(safeLine);
+        textWidth = activeFont.widthOfTextAtSize(safeLine, fontSize);
       } catch {
-        textWidth = line.length * (fontSize * 0.55);
+        // Fallback to ASCII-only sanitized string
+        safeLine = safeLine.replace(/•/g, '-').replace(/[^\x20-\x7E]/g, '?');
+        try {
+          activeFont = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
+          textWidth = activeFont.widthOfTextAtSize(safeLine, fontSize);
+        } catch {
+          textWidth = safeLine.length * (fontSize * 0.55);
+        }
       }
     }
 
     let drawX = el.x;
-
     if (el.align === 'center') {
       drawX = el.x + (el.width - textWidth) / 2;
     } else if (el.align === 'right') {
       drawX = el.x + el.width - textWidth;
     }
 
-    // PDF baseline calculation: visual Y is from top, PDF coordinate is from bottom
-    const drawY = pageHeight - currentVisualY - fontSize;
+    // PDF baseline calculation: baseline is located at currentVisualY + ascenderHeight from page top
+    const drawY = pageHeight - currentVisualY - fontSize * 0.85;
 
     try {
-      page.drawText(line, {
+      page.drawText(safeLine, {
         x: drawX,
         y: drawY,
         size: fontSize,
@@ -283,10 +288,11 @@ async function renderTextElement(
         opacity: el.opacity ?? 1,
       });
     } catch (drawErr) {
-      console.warn(`[pdfExporter] drawText failed with active font, falling back to standard Helvetica:`, drawErr);
+      console.warn(`[pdfExporter] drawText fallback for "${safeLine}":`, drawErr);
       try {
         const fallbackFont = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
-        page.drawText(line, {
+        const asciiLine = safeLine.replace(/[^\x20-\x7E]/g, '');
+        page.drawText(asciiLine, {
           x: drawX,
           y: drawY,
           size: fontSize,
@@ -295,7 +301,7 @@ async function renderTextElement(
           opacity: el.opacity ?? 1,
         });
       } catch (fbErr) {
-        console.error(`[pdfExporter] Final drawText fallback error:`, fbErr);
+        console.error(`[pdfExporter] Final drawText error:`, fbErr);
       }
     }
 

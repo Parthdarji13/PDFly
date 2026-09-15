@@ -108,39 +108,58 @@ export const Inspector: React.FC<InspectorProps> = ({
   // Handle text properties update
   const updateSelectedText = (updates: Partial<TextElement>) => {
     if (selectedEl && selectedEl.type === 'text') {
-      onUpdateState((prev) => ({
-        ...prev,
-        documentState: {
-          ...prev.documentState,
-          elements: prev.documentState.elements.map((el) =>
-            el.id === selectedEl.id ? ({ ...el, ...updates } as TextElement) : el
-          ),
-        },
-      }));
+      onUpdateState((prev) => {
+        const target = prev.documentState.elements.find((el) => el.id === selectedEl.id);
+        if (!target) return prev;
+        const hasChange = Object.entries(updates).some(([k, v]) => (target as any)[k] !== v);
+        if (!hasChange) return prev;
+
+        return {
+          ...prev,
+          documentState: {
+            ...prev.documentState,
+            elements: prev.documentState.elements.map((el) =>
+              el.id === selectedEl.id ? ({ ...el, ...updates } as TextElement) : el
+            ),
+          },
+        };
+      });
     } else {
       // Update global active text config
-      onUpdateState((prev) => ({
-        ...prev,
-        activeTextConfig: {
-          ...prev.activeTextConfig,
-          ...updates,
-        },
-      }));
+      onUpdateState((prev) => {
+        const hasChange = Object.entries(updates).some(([k, v]) => (prev.activeTextConfig as any)[k] !== v);
+        if (!hasChange) return prev;
+
+        return {
+          ...prev,
+          activeTextConfig: {
+            ...prev.activeTextConfig,
+            ...updates,
+          },
+        };
+      });
     }
   };
 
   // Handle shape properties update
   const updateSelectedShape = (updates: Partial<ShapeElement>) => {
     if (selectedEl && selectedEl.type === 'shape') {
-      onUpdateState((prev) => ({
-        ...prev,
-        documentState: {
-          ...prev.documentState,
-          elements: prev.documentState.elements.map((el) =>
-            el.id === selectedEl.id ? ({ ...el, ...updates } as ShapeElement) : el
-          ),
-        },
-      }));
+      onUpdateState((prev) => {
+        const target = prev.documentState.elements.find((el) => el.id === selectedEl.id);
+        if (!target) return prev;
+        const hasChange = Object.entries(updates).some(([k, v]) => (target as any)[k] !== v);
+        if (!hasChange) return prev;
+
+        return {
+          ...prev,
+          documentState: {
+            ...prev.documentState,
+            elements: prev.documentState.elements.map((el) =>
+              el.id === selectedEl.id ? ({ ...el, ...updates } as ShapeElement) : el
+            ),
+          },
+        };
+      });
     }
   };
 

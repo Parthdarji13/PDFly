@@ -15,15 +15,22 @@ export function extractDocumentText(docState: DocumentState): string {
     const pageLines: string[] = [];
     pageLines.push(`--- PAGE ${pIdx + 1} OF ${docState.pages.length} ---`);
 
-    // 1. Gather original detected text items for this page
-    const originalItems = (page.textItems || []).map((item) => ({
-      text: item.text || '',
-      y: typeof item.visualY === 'number' ? item.visualY : page.height - item.y,
-      x: typeof item.visualX === 'number' ? item.visualX : item.x,
-      fontSize: item.fontSize || 12,
-    }));
+    // 1. Gather original detected text items for this page (excluding items that were replaced by in-place edits)
+    const originalItems = (page.textItems || [])
+      .filter((item) => {
+        const hasReplacement = (docState.elements || []).some(
+          (el) => el.pageIndex === pIdx && el.type === 'text' && (el as any).originalTextId === item.id
+        );
+        return !hasReplacement;
+      })
+      .map((item) => ({
+        text: item.text || '',
+        y: typeof item.visualY === 'number' ? item.visualY : page.height - item.y,
+        x: typeof item.visualX === 'number' ? item.visualX : item.x,
+        fontSize: item.fontSize || 12,
+      }));
 
-    // 2. Gather user-added text elements for this page
+    // 2. Gather user-added and edited text elements for this page
     const addedTextElements = (docState.elements || [])
       .filter((el) => el.pageIndex === pIdx && el.type === 'text')
       .map((el: any) => ({
