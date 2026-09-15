@@ -197,10 +197,12 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
       const fontSize = calculateFontSizeFromTransform(transform, itemHeight);
 
       // In PDF typography, ty is the text baseline.
-      // Ascender extends above baseline (typically ~0.82 * fontSize), descender extends below (~0.25 * fontSize).
+      // Ascender extends above baseline (typically ~0.82 * fontSize), descender extends below (~0.18 * fontSize).
       const ascentRatio = fontObjInfo?.ascent && fontObjInfo.ascent > 500 ? fontObjInfo.ascent / 1000 : 0.82;
       const ascenderHeight = fontSize * Math.min(1.0, Math.max(0.7, ascentRatio));
-      const boxHeight = Math.max(fontSize * 1.18, itemHeight);
+      const hasDescenders = /[gjpqy,;Q]/.test(cleanStr);
+      const descenderHeight = hasDescenders ? fontSize * 0.18 : fontSize * 0.04;
+      const boxHeight = ascenderHeight + descenderHeight;
 
       // Convert PDF coordinate system (origin bottom-left baseline) to visual top-left
       const visualY = viewport.height - ty - ascenderHeight;
@@ -242,6 +244,37 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
       });
     });
 
+    // Merge contiguous text fragments on the same line/baseline into full lines
+    const mergedTextItems: DetectedTextItem[] = [];
+    const sortedItems = [...textItems].sort((a, b) => {
+      const yDiff = a.visualY - b.visualY;
+      if (Math.abs(yDiff) > 3) return yDiff;
+      return a.visualX - b.visualX;
+    });
+
+    for (const item of sortedItems) {
+      if (mergedTextItems.length === 0) {
+        mergedTextItems.push({ ...item });
+        continue;
+      }
+
+      const prev = mergedTextItems[mergedTextItems.length - 1];
+      const sameLine = Math.abs(prev.visualY - item.visualY) <= Math.min(prev.fontSize, item.fontSize) * 0.45;
+      const sameFont = prev.fontFamily === item.fontFamily && Math.abs(prev.fontSize - item.fontSize) <= 1.5;
+      const gap = item.visualX - (prev.visualX + prev.width);
+      const isAdjacent = gap >= -4 && gap <= Math.max(prev.fontSize, item.fontSize) * 1.6;
+
+      if (sameLine && sameFont && isAdjacent) {
+        const needsSpace = gap > prev.fontSize * 0.15 && !prev.text.endsWith(' ') && !item.text.startsWith(' ');
+        prev.text = prev.text + (needsSpace ? ' ' : '') + item.text;
+        prev.width = (item.visualX + item.width) - prev.visualX;
+        prev.height = Math.max(prev.height, item.height);
+        prev.visualY = Math.min(prev.visualY, item.visualY);
+      } else {
+        mergedTextItems.push({ ...item });
+      }
+    }
+
     pages.push({
       pageIndex: i - 1,
       pageNumber: i,
@@ -250,7 +283,7 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
       originalWidth: viewport.width,
       originalHeight: viewport.height,
       rotation: page.rotate || 0,
-      textItems,
+      textItems: mergedTextItems,
     });
   }
 

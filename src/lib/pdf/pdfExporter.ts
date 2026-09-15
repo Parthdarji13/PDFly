@@ -143,15 +143,49 @@ async function renderTextElement(
   fontCache: Map<string, PDFFont>,
   extractedFonts?: Record<string, ExtractedFontInfo>
 ) {
-  // 1. If this text replaced an original text item, draw a concealment background patch covering full glyph bounding box
+  const fontSize = Math.max(6, el.fontSize || 12);
+  const rawText = el.text || '';
+  const textLines = rawText.split('\n');
+  const lineHeight = fontSize * (el.lineHeight || 1.2);
+  const lineCount = Math.max(1, textLines.length);
+  const allText = (el.originalText || '') + (el.text || '');
+  const hasDescenders = /[gjpqy,;Q]/.test(allText);
+  // Glyphs stop at baseline if no descenders (~0.86 * fontSize), or ~0.98 * fontSize if descenders are present
+  const singleLineHeight = fontSize * (hasDescenders ? 0.98 : 0.86);
+  const totalTextHeight =
+    lineCount === 1
+      ? singleLineHeight
+      : Math.max(el.height || 0, (lineCount - 1) * lineHeight + singleLineHeight);
+
+  // If this text element is an original PDF text item that was NOT modified by the user,
+  // skip re-drawing it because the original PDF page already contains this text in native vector format!
+  if (el.isOriginalEdit && !el.isModified && el.originalText && el.text === el.originalText) {
+    return;
+  }
+
+  // 1. If this text replaced an original text item, draw a concealment background patch
+  // covering the original text's bounding box and the current element's rendered size.
   if (el.isOriginalEdit && el.originalBBox) {
     const bbox = el.originalBBox;
-    const padX = 3;
-    const padY = 2;
-    const patchX = Math.max(0, bbox.x - padX);
-    const patchY = Math.max(0, pageHeight - (bbox.y + bbox.height) - padY);
-    const patchW = bbox.width + padX * 2;
-    const patchH = bbox.height + padY * 2;
+    const currentW = Math.max(el.width || 0, 0);
+
+    // Calculate union bounding box in top-down screen coordinates (y=0 at top of page)
+    const unionMinX = Math.min(bbox.x, el.x);
+    const unionMinY = Math.min(bbox.y, el.y);
+    const unionMaxX = Math.max(bbox.x + bbox.width, el.x + currentW);
+
+    // Use tight text height so the patch never extends down into adjacent table headers or cell borders
+    const unionHeight =
+      lineCount === 1
+        ? singleLineHeight
+        : Math.max(bbox.height, totalTextHeight);
+    const unionWidth = Math.max(0, unionMaxX - unionMinX);
+
+    // In PDF coordinates (y=0 at bottom of page)
+    const patchX = unionMinX;
+    const patchY = Math.max(0, pageHeight - unionMinY - unionHeight);
+    const patchW = unionWidth;
+    const patchH = unionHeight;
 
     page.drawRectangle({
       x: patchX,
@@ -162,17 +196,27 @@ async function renderTextElement(
       opacity: 1,
     });
   } else if (el.backgroundColor && el.backgroundColor !== 'transparent') {
-    // Custom text background patch
-    const bgY = Math.max(0, pageHeight - (el.y + el.height));
+    // Custom text background patch covering tight multi-line height
+    const currentW = Math.max(el.width || 0, 0);
+    const currentH = totalTextHeight;
+    const bgY = Math.max(0, pageHeight - (el.y + currentH));
     page.drawRectangle({
       x: Math.max(0, el.x),
       y: bgY,
-      width: el.width,
-      height: el.height,
+      width: currentW,
+      height: currentH,
       color: parseColorToRgb(el.backgroundColor),
       opacity: el.opacity ?? 1,
     });
   }
+
+  // Resolve best-matching fallback standard PDF 14 font (always available and full Latin-1 character set)
+  const fallbackFont = await resolveStandardFallbackFont(
+    pdfDoc,
+    el,
+    fontCache,
+    extractedFonts
+  );
 
   let font: PDFFont | null = null;
 
@@ -188,50 +232,7 @@ async function renderTextElement(
     }
   }
 
-  // 2. Fallback path: standard 14 PDF fonts with bold/italic variant resolution
-  if (!font) {
-    let fallbackFontKey = el.pdfFontKey || 'Helvetica';
-    if (el.fontWeight === 'bold' && !fallbackFontKey.includes('Bold')) {
-      fallbackFontKey = fallbackFontKey.includes('Times')
-        ? el.fontStyle === 'italic'
-          ? 'Times-BoldItalic'
-          : 'Times-Bold'
-        : fallbackFontKey.includes('Courier')
-        ? el.fontStyle === 'italic'
-          ? 'Courier-BoldOblique'
-          : 'Courier-Bold'
-        : el.fontStyle === 'italic'
-        ? 'Helvetica-BoldOblique'
-        : 'Helvetica-Bold';
-    } else if (
-      el.fontStyle === 'italic' &&
-      !fallbackFontKey.includes('Italic') &&
-      !fallbackFontKey.includes('Oblique')
-    ) {
-      fallbackFontKey = fallbackFontKey.includes('Times')
-        ? 'Times-Italic'
-        : fallbackFontKey.includes('Courier')
-        ? 'Courier-Oblique'
-        : 'Helvetica-Oblique';
-    }
-
-    try {
-      font = await getOrEmbedFont(pdfDoc, fallbackFontKey, fontCache);
-    } catch (err) {
-      console.warn(
-        `[pdfExporter] Failed to get fallback font ${fallbackFontKey}, falling back to Helvetica:`,
-        err
-      );
-      font = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
-    }
-  }
-
   const textColor = parseColorToRgb(el.color || '#000000');
-  const fontSize = Math.max(6, el.fontSize || 12);
-  const rawText = el.text || '';
-  const textLines = rawText.split('\n');
-  const lineHeight = fontSize * (el.lineHeight || 1.2);
-
   let currentVisualY = el.y;
 
   for (let i = 0; i < textLines.length; i++) {
@@ -242,66 +243,117 @@ async function renderTextElement(
       continue;
     }
 
-    let activeFont = font;
-    let textWidth = 0;
-    let safeLine = line;
+    // Check if the embedded font can render this line's non-whitespace characters.
+    // If characters were added that aren't in the original subset font, fallback to standard font.
+    const canUseEmbedded = Boolean(font && fontSupportsText(font, line, true));
+    const activeFont = canUseEmbedded && font ? font : fallbackFont;
 
-    // Test font encoding & calculate text width
-    try {
-      activeFont.encodeText(safeLine);
-      textWidth = activeFont.widthOfTextAtSize(safeLine, fontSize);
-    } catch {
-      // If active embedded font lacks glyphs in subset, fallback to Standard Helvetica
+    // Check if the active font contains a valid glyph for ASCII space (code 32).
+    // In PDF subset fonts, space glyphs are almost always absent and mapped to .notdef (glyph 0 / []),
+    // because PDF streams use coordinate displacement for word spacing.
+    const hasSpaceGlyph = fontHasSpaceGlyph(activeFont);
+
+    // Determine width of space gap
+    let spaceWidth = fallbackFont.widthOfTextAtSize(' ', fontSize);
+    if (hasSpaceGlyph) {
       try {
-        activeFont = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
-        activeFont.encodeText(safeLine);
-        textWidth = activeFont.widthOfTextAtSize(safeLine, fontSize);
+        spaceWidth = activeFont.widthOfTextAtSize(' ', fontSize);
       } catch {
-        // Fallback to ASCII-only sanitized string
-        safeLine = safeLine.replace(/•/g, '-').replace(/[^\x20-\x7E]/g, '?');
+        spaceWidth = fallbackFont.widthOfTextAtSize(' ', fontSize);
+      }
+    }
+
+    // Split line into alternating words and whitespace tokens (e.g. ["Entry-exit", " ", "data", " ", "report"])
+    const tokens = line.split(/(\s+)/);
+
+    // Calculate total line width accurately
+    let totalLineWidth = 0;
+    for (const token of tokens) {
+      if (/^\s+$/.test(token)) {
+        totalLineWidth += token.length * spaceWidth;
+      } else if (token.length > 0) {
         try {
-          activeFont = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
-          textWidth = activeFont.widthOfTextAtSize(safeLine, fontSize);
+          totalLineWidth += activeFont.widthOfTextAtSize(token, fontSize);
         } catch {
-          textWidth = safeLine.length * (fontSize * 0.55);
+          totalLineWidth += fallbackFont.widthOfTextAtSize(token, fontSize);
         }
       }
     }
 
     let drawX = el.x;
     if (el.align === 'center') {
-      drawX = el.x + (el.width - textWidth) / 2;
+      drawX = el.x + (el.width - totalLineWidth) / 2;
     } else if (el.align === 'right') {
-      drawX = el.x + el.width - textWidth;
+      drawX = el.x + el.width - totalLineWidth;
     }
 
     // PDF baseline calculation: baseline is located at currentVisualY + ascenderHeight from page top
     const drawY = pageHeight - currentVisualY - fontSize * 0.85;
 
-    try {
-      page.drawText(safeLine, {
-        x: drawX,
-        y: drawY,
-        size: fontSize,
-        font: activeFont,
-        color: textColor,
-        opacity: el.opacity ?? 1,
-      });
-    } catch (drawErr) {
-      console.warn(`[pdfExporter] drawText fallback for "${safeLine}":`, drawErr);
+    if (hasSpaceGlyph) {
+      // Font supports spaces natively: draw whole line in one call
       try {
-        const fallbackFont = await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
-        const asciiLine = safeLine.replace(/[^\x20-\x7E]/g, '');
-        page.drawText(asciiLine, {
+        page.drawText(line, {
           x: drawX,
           y: drawY,
           size: fontSize,
-          font: fallbackFont,
+          font: activeFont,
           color: textColor,
           opacity: el.opacity ?? 1,
         });
-      } catch (fbErr) {
-        console.error(`[pdfExporter] Final drawText error:`, fbErr);
+      } catch (drawErr) {
+        console.warn(`[pdfExporter] drawText fallback for "${line}":`, drawErr);
+        try {
+          const asciiLine = line.replace(/[^\x20-\x7E]/g, '?');
+          page.drawText(asciiLine, {
+            x: drawX,
+            y: drawY,
+            size: fontSize,
+            font: fallbackFont,
+            color: textColor,
+            opacity: el.opacity ?? 1,
+          });
+        } catch (fbErr) {
+          console.error(`[pdfExporter] Final drawText error:`, fbErr);
+        }
+      }
+    } else {
+      // Font is an embedded subset that lacks space glyphs.
+      // Draw word tokens and advance X across whitespace WITHOUT drawing missing .notdef space glyphs!
+      let curX = drawX;
+      for (const token of tokens) {
+        if (/^\s+$/.test(token)) {
+          curX += token.length * spaceWidth;
+        } else if (token.length > 0) {
+          try {
+            page.drawText(token, {
+              x: curX,
+              y: drawY,
+              size: fontSize,
+              font: activeFont,
+              color: textColor,
+              opacity: el.opacity ?? 1,
+            });
+            curX += activeFont.widthOfTextAtSize(token, fontSize);
+          } catch (tokenErr) {
+            console.warn(`[pdfExporter] Token draw fallback for "${token}":`, tokenErr);
+            try {
+              const asciiToken = token.replace(/[^\x20-\x7E]/g, '?');
+              page.drawText(asciiToken, {
+                x: curX,
+                y: drawY,
+                size: fontSize,
+                font: fallbackFont,
+                color: textColor,
+                opacity: el.opacity ?? 1,
+              });
+              curX += fallbackFont.widthOfTextAtSize(asciiToken, fontSize);
+            } catch (tokFbErr) {
+              console.error(`[pdfExporter] Token fallback failed:`, tokFbErr);
+              curX += token.length * (fontSize * 0.55);
+            }
+          }
+        }
       }
     }
 
@@ -309,7 +361,7 @@ async function renderTextElement(
     if (el.underline) {
       page.drawLine({
         start: { x: drawX, y: drawY - 2 },
-        end: { x: drawX + textWidth, y: drawY - 2 },
+        end: { x: drawX + totalLineWidth, y: drawY - 2 },
         thickness: Math.max(1, fontSize / 14),
         color: textColor,
         opacity: el.opacity ?? 1,
@@ -317,6 +369,111 @@ async function renderTextElement(
     }
 
     currentVisualY += lineHeight;
+  }
+}
+
+/**
+ * Checks whether a font has an explicit glyph for ASCII space (code point 32).
+ * Embedded font subsets in PDFs almost always lack space glyphs because word spacing
+ * is performed via PDF stream coordinate displacement rather than space glyphs.
+ */
+export function fontHasSpaceGlyph(font: PDFFont): boolean {
+  try {
+    const isCustom = (font as any).embedder?.constructor?.name === 'CustomFontEmbedder';
+    if (!isCustom) return true; // Standard fonts always have space
+    const fkFont = (font as any).embedder?.font;
+    if (!fkFont) return true;
+    if (typeof fkFont.hasGlyphForCodePoint === 'function') {
+      if (!fkFont.hasGlyphForCodePoint(32)) return false;
+    }
+    if (typeof fkFont.glyphForCodePoint === 'function') {
+      const g = fkFont.glyphForCodePoint(32);
+      if (!g || g.id === 0 || g.name === '.notdef') return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Checks whether a font has valid glyphs for all non-whitespace characters in a string.
+ * Returns false if any character resolves to .notdef (glyph id 0).
+ */
+export function fontSupportsText(font: PDFFont, text: string, allowMissingSpace = true): boolean {
+  try {
+    const isCustom = (font as any).embedder?.constructor?.name === 'CustomFontEmbedder';
+    if (!isCustom) {
+      try {
+        font.encodeText(text);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    const fkFont = (font as any).embedder?.font;
+    if (!fkFont) return true;
+    for (let i = 0; i < text.length; i++) {
+      const code = text.codePointAt(i);
+      if (!code) continue;
+      if (code > 0xffff) i++; // advance surrogate pair
+      if (code === 32 || code === 9) {
+        if (allowMissingSpace) continue;
+      }
+      if (typeof fkFont.hasGlyphForCodePoint === 'function') {
+        if (!fkFont.hasGlyphForCodePoint(code)) return false;
+      }
+      if (typeof fkFont.glyphForCodePoint === 'function') {
+        const g = fkFont.glyphForCodePoint(code);
+        if (!g || g.id === 0 || g.name === '.notdef') return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolves the closest standard PDF 14 font variant matching the element's family, weight, and style
+ */
+export async function resolveStandardFallbackFont(
+  pdfDoc: PDFDocument,
+  el: TextElement,
+  fontCache: Map<string, PDFFont>,
+  extractedFonts?: Record<string, ExtractedFontInfo>
+): Promise<PDFFont> {
+  const extracted = el.embeddedFontId && extractedFonts ? extractedFonts[el.embeddedFontId] : null;
+  let fallbackFontKey = extracted?.fallbackPdfKey || el.pdfFontKey || 'Helvetica';
+
+  if (el.fontWeight === 'bold' && !fallbackFontKey.includes('Bold')) {
+    fallbackFontKey = fallbackFontKey.includes('Times')
+      ? el.fontStyle === 'italic'
+        ? 'Times-BoldItalic'
+        : 'Times-Bold'
+      : fallbackFontKey.includes('Courier')
+      ? el.fontStyle === 'italic'
+        ? 'Courier-BoldOblique'
+        : 'Courier-Bold'
+      : el.fontStyle === 'italic'
+      ? 'Helvetica-BoldOblique'
+      : 'Helvetica-Bold';
+  } else if (
+    el.fontStyle === 'italic' &&
+    !fallbackFontKey.includes('Italic') &&
+    !fallbackFontKey.includes('Oblique')
+  ) {
+    fallbackFontKey = fallbackFontKey.includes('Times')
+      ? 'Times-Italic'
+      : fallbackFontKey.includes('Courier')
+      ? 'Courier-Oblique'
+      : 'Helvetica-Oblique';
+  }
+
+  try {
+    return await getOrEmbedFont(pdfDoc, fallbackFontKey, fontCache);
+  } catch {
+    return await getOrEmbedFont(pdfDoc, 'Helvetica', fontCache);
   }
 }
 

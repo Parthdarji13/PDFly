@@ -16,7 +16,7 @@ import {
 } from '../lib/types';
 import { AppState } from '../lib/state/store';
 import { renderPageToCanvas } from '../lib/pdf/pdfEngine';
-import { sampleCanvasColor, sampleCanvasBackgroundColor, cleanTextForPdf } from '../lib/pdf/fontMatcher';
+import { sampleCanvasColor, sampleCanvasBackgroundColor, sampleCanvasInkColor, cleanTextForPdf } from '../lib/pdf/fontMatcher';
 import { Check } from 'lucide-react';
 
 interface PageCardProps {
@@ -61,7 +61,26 @@ export const PageCard: React.FC<PageCardProps> = ({
 
     const renderHandle = renderPageToCanvas(pdfDocProxy, page.pageNumber, canvasRef.current, 2.0);
 
-    renderHandle.promise.catch((err) => {
+    renderHandle.promise.then(() => {
+      // Re-apply background concealment patches onto canvas for any edited original text
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      pageElements.forEach((el) => {
+        if (el.type === 'text' && (el as TextElement).isOriginalEdit && (el as TextElement).originalBBox) {
+          const bbox = (el as TextElement).originalBBox!;
+          const eraseH = Math.min(bbox.height, (el as TextElement).height || bbox.height);
+          ctx.fillStyle = (el as TextElement).backgroundColor || '#ffffff';
+          ctx.fillRect(
+            bbox.x * 2.0,
+            bbox.y * 2.0,
+            bbox.width * 2.0,
+            eraseH * 2.0
+          );
+        }
+      });
+    }).catch((err) => {
       if (err?.name !== 'RenderingCancelledException') {
         console.error('Error rendering page:', err);
       }
@@ -71,6 +90,27 @@ export const PageCard: React.FC<PageCardProps> = ({
       renderHandle.cancel();
     };
   }, [pdfDocProxy, page.pageNumber, page.rotation]);
+
+  // Reactive canvas concealment: immediately conceal original text when elements are edited
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    pageElements.forEach((el) => {
+      if (el.type === 'text' && (el as TextElement).isOriginalEdit && (el as TextElement).originalBBox) {
+        const bbox = (el as TextElement).originalBBox!;
+        const eraseH = Math.min(bbox.height, (el as TextElement).height || bbox.height);
+        ctx.fillStyle = (el as TextElement).backgroundColor || '#ffffff';
+        ctx.fillRect(
+          bbox.x * 2.0,
+          bbox.y * 2.0,
+          bbox.width * 2.0,
+          eraseH * 2.0
+        );
+      }
+    });
+  }, [pageElements]);
 
   // Smoothly scroll active page into viewport when selected
   useEffect(() => {
@@ -103,7 +143,7 @@ export const PageCard: React.FC<PageCardProps> = ({
   const handleOriginalTextClick = (textItem: DetectedTextItem, e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // Accurately sample background color outside text glyphs
+    // Accurately sample background color strictly from inside the text bounding box
     const sampledBg = sampleCanvasBackgroundColor(
       canvasRef.current,
       {
@@ -116,13 +156,31 @@ export const PageCard: React.FC<PageCardProps> = ({
       '#ffffff'
     );
 
+    // Sample true ink/glyph color of the original PDF text from canvas
+    const sampledInk = sampleCanvasInkColor(
+      canvasRef.current,
+      {
+        x: textItem.visualX,
+        y: textItem.visualY,
+        width: textItem.width,
+        height: textItem.height,
+      },
+      2.0,
+      textItem.color || '#000000'
+    );
+
     // Calculate background luminance to guarantee optimal text contrast
     const bgR = parseInt(sampledBg.slice(1, 3), 16) || 255;
     const bgG = parseInt(sampledBg.slice(3, 5), 16) || 255;
     const bgB = parseInt(sampledBg.slice(5, 7), 16) || 255;
     const bgLuminance = 0.299 * bgR + 0.587 * bgG + 0.114 * bgB;
 
-    const textColor = bgLuminance < 128 ? '#ffffff' : (textItem.color && textItem.color !== '#000000' ? textItem.color : '#0f172a');
+    let textColor = sampledInk;
+    if (bgLuminance < 128 && bgLuminance > 0) {
+      textColor = '#ffffff';
+    } else if (textColor === '#ffffff' && bgLuminance >= 128) {
+      textColor = '#000000';
+    }
 
     // Check if an editor element already replaced this text item
     const existingEl = pageElements.find(
@@ -140,8 +198,23 @@ export const PageCard: React.FC<PageCardProps> = ({
       return;
     }
 
-    const initialW = Math.max(80, Math.round(textItem.width + 16));
-    const initialH = Math.max(26, Math.round(textItem.height + 6));
+    // Immediately patch the canvas under the text to erase the original ink
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = sampledBg;
+        ctx.fillRect(
+          textItem.visualX * 2.0,
+          textItem.visualY * 2.0,
+          textItem.width * 2.0,
+          textItem.height * 2.0
+        );
+      }
+    }
+
+    // Tight dimensions: exactly match text bounds without oversized bubbles
+    const initialW = Math.ceil(textItem.width) + 1;
+    const initialH = Math.ceil(textItem.height);
 
     // Create an editable text element matching the original font & size!
     const newTextElement: TextElement = {
@@ -164,7 +237,7 @@ export const PageCard: React.FC<PageCardProps> = ({
       underline: false,
       color: textColor,
       align: 'left',
-      lineHeight: 1.25,
+      lineHeight: 1.18,
       letterSpacing: 0,
       backgroundColor: sampledBg,
       isOriginalEdit: true,
@@ -531,9 +604,11 @@ export const PageCard: React.FC<PageCardProps> = ({
         }}
       />
 
-      {/* Text Detection Overlay Layer (Active in 'editText' and 'select' mode) */}
+
+
+      {/* Invisible seamless text click layer — click any text to edit directly with matched font */}
       {(state.selectedTool === 'editText' || state.selectedTool === 'select') && (
-        <div className="text-detection-layer">
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15 }}>
           {page.textItems.map((item) => {
             const isItemEdited = pageElements.some(
               (el) => el.type === 'text' && (el as TextElement).originalTextId === item.id
@@ -543,23 +618,24 @@ export const PageCard: React.FC<PageCardProps> = ({
             return (
               <div
                 key={item.id}
-                className={`text-item-box ${state.selectedTool === 'select' ? 'subtle' : ''}`}
                 style={{
+                  position: 'absolute',
                   left: `${item.visualX * scale}px`,
                   top: `${item.visualY * scale}px`,
                   width: `${item.width * scale}px`,
                   height: `${item.height * scale}px`,
+                  cursor: 'text',
+                  pointerEvents: 'auto',
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  boxShadow: 'none',
+                  userSelect: 'none',
                 }}
                 onClick={(e) => handleOriginalTextClick(item, e)}
                 onMouseDown={(e) => e.stopPropagation()}
-                title="Click to edit this text"
-              >
-                {/* Font Info Tooltip */}
-                <div className="text-font-tooltip">
-                  {item.isEmbeddedFont ? '⭐ Original Font: ' : '⚡ Closest Match: '}
-                  {item.cleanFontName || item.fontFamily} {Math.round(item.fontSize)}pt
-                </div>
-              </div>
+                title=""
+              />
             );
           })}
         </div>
@@ -581,8 +657,8 @@ export const PageCard: React.FC<PageCardProps> = ({
               style={{
                 left: `${el.x * scale}px`,
                 top: `${el.y * scale}px`,
-                width: `${Math.max(20, el.width) * scale}px`,
-                height: `${Math.max(16, el.height) * scale}px`,
+                width: `${el.width * scale}px`,
+                height: `${el.height * scale}px`,
                 zIndex: el.zIndex,
                 opacity: el.opacity ?? 1,
                 // Text elements use text cursor, not move cursor
@@ -608,12 +684,13 @@ export const PageCard: React.FC<PageCardProps> = ({
                       fontWeight: (el as TextElement).fontWeight,
                       fontStyle: (el as TextElement).fontStyle,
                       textDecoration: (el as TextElement).underline ? 'underline' : 'none',
-                      color: (el as TextElement).color || '#0f172a',
+                      color: (el as TextElement).color || '#000000',
                       textAlign: (el as TextElement).align || 'left',
-                      lineHeight: String((el as TextElement).lineHeight || 1.25),
+                      lineHeight: String((el as TextElement).lineHeight || 1.18),
                       letterSpacing: `${(el as TextElement).letterSpacing || 0}px`,
                       // Use sampled background so original canvas text is hidden seamlessly
                       backgroundColor: (el as TextElement).backgroundColor || '#ffffff',
+                      borderRadius: 0,
                       padding: '0px',
                       margin: 0,
                       border: 'none',
@@ -626,27 +703,44 @@ export const PageCard: React.FC<PageCardProps> = ({
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       display: 'block',
-                      // Inherit background without browser textarea default styling
                       WebkitAppearance: 'none',
                       appearance: 'none',
                     }}
                     onChange={(e) => {
                       const newText = e.target.value;
                       const textEl = el as TextElement;
-                      // Guard against NaN/0/undefined fontSize — collapses the element to 0px on first keystroke
                       const safeFontSize =
                         textEl.fontSize && !isNaN(textEl.fontSize) && textEl.fontSize > 0
                           ? textEl.fontSize
                           : 14;
                       const lines = newText.split('\n');
-                      const lineCount = lines.length;
-                      const approxLineHeight = safeFontSize * (textEl.lineHeight || 1.25);
-                      const estHeightRaw = Math.max(textEl.height || 0, lineCount * approxLineHeight + 10);
-                      const maxLineLen = Math.max(...lines.map((l) => l.length), 1);
-                      const estWidthRaw = Math.max(textEl.width || 0, maxLineLen * (safeFontSize * 0.6) + 16);
-                      // Clamp to sane minimums regardless of any NaN/negative inputs
-                      const estHeight = Math.max(20, isFinite(estHeightRaw) ? estHeightRaw : 20);
-                      const estWidth = Math.max(40, isFinite(estWidthRaw) ? estWidthRaw : 40);
+                      const lineCount = Math.max(1, lines.length);
+                      const lineHeight = safeFontSize * (textEl.lineHeight || 1.18);
+                      const hasDescenders = /[gjpqy,;Q]/.test(newText);
+                      const singleLineH = safeFontSize * (hasDescenders ? 0.98 : 0.86);
+                      const estHeight = lineCount === 1 ? Math.ceil(singleLineH) : Math.ceil(lineCount * lineHeight);
+
+                      // Accurately measure the longest line with offscreen canvas context
+                      let maxMeasuredWidth = 0;
+                      try {
+                        const mCanvas = document.createElement('canvas');
+                        const mCtx = mCanvas.getContext('2d');
+                        if (mCtx) {
+                          mCtx.font = `${textEl.fontWeight || 'normal'} ${safeFontSize}px ${textEl.fontFamily || 'sans-serif'}`;
+                          for (const line of lines) {
+                            const w = mCtx.measureText(line).width;
+                            if (w > maxMeasuredWidth) maxMeasuredWidth = w;
+                          }
+                        }
+                      } catch {
+                        const maxLen = Math.max(...lines.map((l) => l.length), 1);
+                        maxMeasuredWidth = maxLen * (safeFontSize * 0.55);
+                      }
+
+                      // Ensure width at least covers original bounding box (so old text remains covered)
+                      // plus 1px margin for subpixel rounding
+                      const origW = textEl.originalBBox?.width || 0;
+                      const estWidth = Math.max(origW, Math.ceil(maxMeasuredWidth) + 1);
 
                       onUpdateElement(el.id, {
                         text: newText,
@@ -686,13 +780,15 @@ export const PageCard: React.FC<PageCardProps> = ({
                       fontWeight: (el as TextElement).fontWeight,
                       fontStyle: (el as TextElement).fontStyle,
                       textDecoration: (el as TextElement).underline ? 'underline' : 'none',
-                      color: (el as TextElement).color || '#0f172a',
+                      color: (el as TextElement).color || '#000000',
                       textAlign: (el as TextElement).align || 'left',
-                      lineHeight: String((el as TextElement).lineHeight || 1.25),
+                      lineHeight: String((el as TextElement).lineHeight || 1.18),
                       letterSpacing: `${(el as TextElement).letterSpacing || 0}px`,
-                      // Background covers original canvas text — makes edit invisible
+                      // Background covers original canvas text — permanently visible after editing
                       backgroundColor: (el as TextElement).backgroundColor || '#ffffff',
+                      borderRadius: 0,
                       padding: '0px',
+                      margin: 0,
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       cursor: 'text',
@@ -703,6 +799,39 @@ export const PageCard: React.FC<PageCardProps> = ({
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
+                      const textEl = el as TextElement;
+                      if (textEl.isOriginalEdit && textEl.originalBBox) {
+                        const sampledBg = sampleCanvasBackgroundColor(
+                          canvasRef.current,
+                          textEl.originalBBox,
+                          2.0,
+                          '#ffffff'
+                        );
+                        const sampledInk = sampleCanvasInkColor(
+                          canvasRef.current,
+                          textEl.originalBBox,
+                          2.0,
+                          textEl.color || '#000000'
+                        );
+                        if (canvasRef.current) {
+                          const ctx = canvasRef.current.getContext('2d');
+                          if (ctx) {
+                            ctx.fillStyle = sampledBg;
+                            ctx.fillRect(
+                              textEl.originalBBox.x * 2.0,
+                              textEl.originalBBox.y * 2.0,
+                              textEl.originalBBox.width * 2.0,
+                              textEl.originalBBox.height * 2.0
+                            );
+                          }
+                        }
+                        if (textEl.backgroundColor === 'transparent' || !textEl.backgroundColor) {
+                          onUpdateElement(el.id, {
+                            backgroundColor: sampledBg,
+                            color: sampledInk,
+                          });
+                        }
+                      }
                       onSelectElement(el.id);
                       setTimeout(() => {
                         const ta = document.getElementById(`text-el-${el.id}`) as HTMLTextAreaElement | null;

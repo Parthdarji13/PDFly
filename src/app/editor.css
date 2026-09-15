@@ -607,7 +607,7 @@
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
 }
 
-/* Textarea inside Text Elements */
+/* Textarea inside Text Elements — 100% Seamless in-place editing */
 .element-text-textarea {
   font-family: inherit;
   font-size: inherit;
@@ -617,25 +617,38 @@
   text-align: inherit;
   line-height: inherit;
   background: transparent;
-  border: none;
-  outline: none;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
   resize: none;
   box-sizing: border-box;
-  padding: 1px 2px;
-  margin: 0;
+  padding: 0 !important;
+  margin: 0 !important;
   width: 100%;
   height: 100%;
-  overflow: hidden;
+  overflow: visible;
   cursor: text;
+  transition: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.element-text-textarea:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .element-text-display {
   box-sizing: border-box;
-  padding: 1px 2px;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  cursor: move;
+  overflow: visible;
+  cursor: text;
 }
 
 /* =========================================================================
@@ -955,67 +968,11 @@
   cursor: text !important;
 }
 
-/* Text Detection Overlay */
-.text-detection-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 10;
-  pointer-events: none;
-}
-
-.text-item-box {
-  position: absolute;
-  border: 1px dashed transparent;
-  background: transparent;
-  border-radius: 2px;
-  cursor: text;
-  pointer-events: auto;
-  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
-}
-
-.text-item-box.subtle {
-  border: 1px dashed transparent;
-  background: transparent;
-}
-
-.text-item-box:hover {
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px dashed rgba(99, 102, 241, 0.55);
-  box-shadow: 0 0 6px rgba(99, 102, 241, 0.2);
-}
-
-.text-item-box.edited {
-  display: none !important;
-  opacity: 0;
-  pointer-events: none;
-}
-
+/* Text Detection Overlay - Disabled (document is converted to live editable mode) */
+.text-detection-layer,
+.text-item-box,
 .text-font-tooltip {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  transform: translateY(-4px);
-  background: var(--bg-glass-heavy);
-  backdrop-filter: blur(8px);
-  color: #ffffff;
-  padding: 3px 8px;
-  border-radius: var(--radius-xs);
-  font-size: 10.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-medium);
-  z-index: 100;
-}
-
-.text-item-box:hover .text-font-tooltip {
-  opacity: 1;
+  display: none !important;
 }
 
 /* Elements Overlay Layer */

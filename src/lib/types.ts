@@ -117,6 +117,8 @@ export interface TextElement extends BaseElement {
   isEmbeddedFont?: boolean;
   embeddedFontId?: string;
   fontMatchQuality?: 'original' | 'closest-match';
+  isModified?: boolean;
+  originalText?: string;
 }
 
 export interface DrawElement extends BaseElement {

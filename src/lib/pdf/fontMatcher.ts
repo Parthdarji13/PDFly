@@ -34,6 +34,8 @@ export function cleanPdfFontName(rawName: string): string {
 export function cleanTextForPdf(text: string): string {
   if (!text) return '';
   return text
+    // Replace tabs with standard ASCII space
+    .replace(/\t/g, ' ')
     // Replace all unicode space variants with standard ASCII space
     .replace(/[\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
     // Remove zero-width characters, soft hyphens, byte-order-marks, replacement chars, Private Use Area chars
@@ -313,7 +315,9 @@ export function sampleCanvasColor(
 }
 
 /**
- * Accurately samples the true background color around a text item (avoiding text glyph ink)
+ * Accurately samples the true background color of a text item by finding the dominant
+ * background color INSIDE the text bounding box. This avoids sampling outside table cells
+ * or picking up adjacent row colors and borders.
  */
 export function sampleCanvasBackgroundColor(
   canvas: HTMLCanvasElement | null,
@@ -326,66 +330,136 @@ export function sampleCanvasBackgroundColor(
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return fallback;
 
-    // Sample points around the text bounding box (top, bottom, left, right) at multiple margin depths
-    const points = [
-      // Top edge samples (slightly above text)
-      { x: (bbox.x + bbox.width * 0.2) * canvasScale, y: (bbox.y - 3) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y - 3) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.8) * canvasScale, y: (bbox.y - 3) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y - 6) * canvasScale },
-      // Bottom edge samples (slightly below text)
-      { x: (bbox.x + bbox.width * 0.2) * canvasScale, y: (bbox.y + bbox.height + 3) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y + bbox.height + 3) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.8) * canvasScale, y: (bbox.y + bbox.height + 3) * canvasScale },
-      { x: (bbox.x + bbox.width * 0.5) * canvasScale, y: (bbox.y + bbox.height + 6) * canvasScale },
-      // Left edge samples
-      { x: (bbox.x - 3) * canvasScale, y: (bbox.y + bbox.height * 0.3) * canvasScale },
-      { x: (bbox.x - 3) * canvasScale, y: (bbox.y + bbox.height * 0.5) * canvasScale },
-      { x: (bbox.x - 3) * canvasScale, y: (bbox.y + bbox.height * 0.7) * canvasScale },
-      // Right edge samples
-      { x: (bbox.x + bbox.width + 3) * canvasScale, y: (bbox.y + bbox.height * 0.3) * canvasScale },
-      { x: (bbox.x + bbox.width + 3) * canvasScale, y: (bbox.y + bbox.height * 0.5) * canvasScale },
-      { x: (bbox.x + bbox.width + 3) * canvasScale, y: (bbox.y + bbox.height * 0.7) * canvasScale },
-    ];
+    const sx = Math.max(0, Math.min(canvas.width - 1, Math.round(bbox.x * canvasScale)));
+    const sy = Math.max(0, Math.min(canvas.height - 1, Math.round(bbox.y * canvasScale)));
+    const sw = Math.max(1, Math.min(canvas.width - sx, Math.round(bbox.width * canvasScale)));
+    const sh = Math.max(1, Math.min(canvas.height - sy, Math.round(bbox.height * canvasScale)));
 
-    const sampledColors: { r: number; g: number; b: number; luminance: number }[] = [];
+    if (sw <= 0 || sh <= 0) return fallback;
 
-    for (const pt of points) {
-      const sx = Math.max(0, Math.min(canvas.width - 1, Math.round(pt.x)));
-      const sy = Math.max(0, Math.min(canvas.height - 1, Math.round(pt.y)));
-      const p = ctx.getImageData(sx, sy, 1, 1).data;
-      if (p[3] > 20) {
-        const r = p[0];
-        const g = p[1];
-        const b = p[2];
-        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-        sampledColors.push({ r, g, b, luminance });
+    const imgData = ctx.getImageData(sx, sy, sw, sh);
+    const data = imgData.data;
+
+    // Group pixels into quantized color bins (step of 4) to find the dominant background
+    const bins = new Map<string, { count: number; sumR: number; sumG: number; sumB: number }>();
+    const totalPixels = sw * sh;
+    const step = totalPixels > 10000 ? 4 : 1;
+
+    for (let i = 0; i < data.length; i += 4 * step) {
+      const a = data[i + 3];
+      if (a < 20) continue;
+
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      // Quantize to reduce antialiasing noise
+      const qr = (r >> 2) << 2;
+      const qg = (g >> 2) << 2;
+      const qb = (b >> 2) << 2;
+      const key = `${qr},${qg},${qb}`;
+
+      let bin = bins.get(key);
+      if (!bin) {
+        bin = { count: 0, sumR: 0, sumG: 0, sumB: 0 };
+        bins.set(key, bin);
+      }
+      bin.count++;
+      bin.sumR += r;
+      bin.sumG += g;
+      bin.sumB += b;
+    }
+
+    if (bins.size === 0) return fallback;
+
+    // The background is the dominant color (highest count of pixels inside the text box)
+    let bestBin: { count: number; sumR: number; sumG: number; sumB: number } | null = null;
+    for (const bin of bins.values()) {
+      if (!bestBin || bin.count > bestBin.count) {
+        bestBin = bin;
       }
     }
 
-    if (sampledColors.length === 0) return fallback;
+    if (!bestBin || bestBin.count === 0) return fallback;
 
-    // Sort by luminance to filter out outlier pixels (like dark text ink or border lines)
-    sampledColors.sort((a, b) => a.luminance - b.luminance);
+    const avgR = Math.round(bestBin.sumR / bestBin.count);
+    const avgG = Math.round(bestBin.sumG / bestBin.count);
+    const avgB = Math.round(bestBin.sumB / bestBin.count);
 
-    // Take the middle 60% of samples to reject outlier points
-    const startIdx = Math.floor(sampledColors.length * 0.2);
-    const endIdx = Math.ceil(sampledColors.length * 0.8);
-    const middleSamples = sampledColors.slice(startIdx, endIdx);
-    const useSamples = middleSamples.length > 0 ? middleSamples : sampledColors;
-
-    const avgR = Math.round(useSamples.reduce((sum, c) => sum + c.r, 0) / useSamples.length);
-    const avgG = Math.round(useSamples.reduce((sum, c) => sum + c.g, 0) / useSamples.length);
-    const avgB = Math.round(useSamples.reduce((sum, c) => sum + c.b, 0) / useSamples.length);
-
-    // If genuinely pure white on all channels, return standard '#ffffff'
-    if (avgR >= 253 && avgG >= 253 && avgB >= 253) {
+    // If genuinely pure white, return standard '#ffffff'
+    if (avgR >= 252 && avgG >= 252 && avgB >= 252) {
       return '#ffffff';
     }
 
     const rHex = avgR.toString(16).padStart(2, '0');
     const gHex = avgG.toString(16).padStart(2, '0');
     const bHex = avgB.toString(16).padStart(2, '0');
+
+    return `#${rHex}${gHex}${bHex}`;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Samples the true ink/glyph color of the original PDF text from the canvas.
+ */
+export function sampleCanvasInkColor(
+  canvas: HTMLCanvasElement | null,
+  bbox: { x: number; y: number; width: number; height: number },
+  canvasScale: number = 2.0,
+  fallback: string = '#000000'
+): string {
+  if (!canvas) return fallback;
+  try {
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return fallback;
+
+    const sx = Math.max(0, Math.min(canvas.width - 1, Math.round(bbox.x * canvasScale)));
+    const sy = Math.max(0, Math.min(canvas.height - 1, Math.round(bbox.y * canvasScale)));
+    const sw = Math.max(1, Math.min(canvas.width - sx, Math.round(bbox.width * canvasScale)));
+    const sh = Math.max(1, Math.min(canvas.height - sy, Math.round(bbox.height * canvasScale)));
+
+    if (sw <= 0 || sh <= 0) return fallback;
+
+    const imgData = ctx.getImageData(sx, sy, sw, sh);
+    const data = imgData.data;
+
+    let darkestLuminance = 999;
+    let inkR = 0;
+    let inkG = 0;
+    let inkB = 0;
+    let foundInk = false;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const a = data[i + 3];
+      if (a < 50) continue;
+
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+      // Looking for the darkest ink pixels
+      if (lum < darkestLuminance && lum < 160) {
+        darkestLuminance = lum;
+        inkR = r;
+        inkG = g;
+        inkB = b;
+        foundInk = true;
+      }
+    }
+
+    if (!foundInk) return fallback;
+
+    // If close to black, return '#000000'
+    if (inkR <= 15 && inkG <= 15 && inkB <= 15) {
+      return '#000000';
+    }
+
+    const rHex = inkR.toString(16).padStart(2, '0');
+    const gHex = inkG.toString(16).padStart(2, '0');
+    const bHex = inkB.toString(16).padStart(2, '0');
 
     return `#${rHex}${gHex}${bHex}`;
   } catch {

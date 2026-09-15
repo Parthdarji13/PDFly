@@ -32,6 +32,7 @@ import { AiSelectPdfModal, AiFeatureType } from '../components/modals/AiSelectPd
 import { AppState, initialAppState, HistoryEntry } from '../lib/state/store';
 import { EditorElement, PageInfo, ToolType, TextElement } from '../lib/types';
 import { loadPDFDocument, generatePageThumbnail } from '../lib/pdf/pdfEngine';
+import { cleanTextForPdf } from '../lib/pdf/fontMatcher';
 import {
   generateSampleInvoice,
   generateSampleResume,
