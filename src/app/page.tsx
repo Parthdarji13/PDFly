@@ -412,6 +412,12 @@ export default function PDFEditorPage() {
             setState((prev) => ({ ...prev, isSearchModalOpen: true }));
           }
           return;
+        case 'protect':
+          showToast('Password protection is coming soon! Use Watermark PDF to add visual stamps.', 'info');
+          return;
+        case 'unlock':
+          showToast('PDF unlock is coming soon! For now, use an external tool to remove passwords before uploading.', 'info');
+          return;
       }
 
       // If document is already loaded, open directly in editor

@@ -144,7 +144,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               className="btn-open-studio"
               onClick={() => onOpenTool('edit')}
             >
-              <span>Open Studio</span>
+              <span>Open PDF Studio</span>
               <ArrowRight size={14} />
             </button>
           </div>
@@ -290,7 +290,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <Zap size={20} />
           </div>
           <div className="highlight-content">
-            <h4>All-in-One</h4>
+            <h3>All-in-One</h3>
             <p>Edit, convert, merge, split and more — in one place.</p>
           </div>
         </div>
@@ -300,7 +300,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <Sparkles size={20} />
           </div>
           <div className="highlight-content">
-            <h4>AI-Powered</h4>
+            <h3>AI-Powered</h3>
             <p>Summarize, extract, chat and understand your PDFs.</p>
           </div>
         </div>
@@ -310,7 +310,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <ShieldCheck size={20} />
           </div>
           <div className="highlight-content">
-            <h4>100% Private</h4>
+            <h3>100% Private</h3>
             <p>Your files never leave your device.</p>
           </div>
         </div>
@@ -320,7 +320,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <Gift size={20} />
           </div>
           <div className="highlight-content">
-            <h4>Free to Use</h4>
+            <h3>Free to Use</h3>
             <p>Powerful tools, no signup, no hidden fees.</p>
           </div>
         </div>
@@ -400,10 +400,10 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="pdf-tools-header-row">
           <div>
             <h2 className="pdf-tools-title">
-              Everything you need. <span className="text-indigo-accent">One workspace.</span>
+              All the PDF tools <span className="text-indigo-accent">you need.</span>
             </h2>
             <p className="pdf-tools-subtitle">
-              Powerful and easy-to-use tools to handle your PDFs, all in one place.
+              Powerful, private, and easy-to-use tools to handle any document task in one workspace.
             </p>
           </div>
         </div>
@@ -514,12 +514,12 @@ export const HomePage: React.FC<HomePageProps> = ({
               </div>
               <ArrowRight size={14} className="tool-arrow-link" />
             </div>
-            <h3 className="tool-tile-title">Protect PDF</h3>
-            <p className="tool-tile-desc">Add password encryption</p>
+            <h3 className="tool-tile-title">Watermark PDF</h3>
+            <p className="tool-tile-desc">Add custom watermarks</p>
           </div>
 
           {/* 10. Unlock PDF */}
-          <div className="tool-tile-card" onClick={() => onOpenTool('edit')}>
+          <div className="tool-tile-card" onClick={() => onOpenTool('unlock')}>
             <div className="tool-tile-top">
               <div className="tool-tile-icon-box bg-orange-tint">
                 <Unlock size={18} />
@@ -568,7 +568,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div className="templates-preview-row">
             {/* Template 1: Invoice */}
             <div className="template-card" onClick={() => onLoadSample('invoice')}>
-              <div className="template-doc-thumbnail">
+              <div className="template-doc-thumbnail" aria-hidden="true">
                 <div className="mini-doc invoice-doc">
                   <div className="inv-top-bar" />
                   <div className="inv-header">
@@ -587,7 +587,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <span className="inv-bill-client">Global Tech Innovations</span>
                   </div>
 
-                  <table className="inv-table">
+                  <table className="inv-table" role="presentation">
                     <thead>
                       <tr>
                         <th>ITEM</th>
@@ -630,7 +630,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             {/* Template 2: Resume */}
             <div className="template-card" onClick={() => onLoadSample('resume')}>
-              <div className="template-doc-thumbnail">
+              <div className="template-doc-thumbnail" aria-hidden="true">
                 <div className="mini-doc resume-doc">
                   <div className="res-header">
                     <div className="res-name">ALEXANDER R. VANCE</div>
@@ -674,7 +674,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             {/* Template 3: NDA Agreement */}
             <div className="template-card" onClick={() => onLoadSample('contract')}>
-              <div className="template-doc-thumbnail">
+              <div className="template-doc-thumbnail" aria-hidden="true">
                 <div className="mini-doc nda-doc">
                   <div className="nda-header">
                     <div className="nda-title">NON-DISCLOSURE AGREEMENT</div>
@@ -719,7 +719,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             {/* Template 4: Certificate */}
             <div className="template-card" onClick={() => onLoadSample('certificate')}>
-              <div className="template-doc-thumbnail">
+              <div className="template-doc-thumbnail" aria-hidden="true">
                 <div className="mini-doc certificate-doc">
                   <div className="cert-border-outer">
                     <div className="cert-border-inner">
@@ -892,7 +892,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           {/* Product Col */}
           <div className="footer-col">
-            <h5 className="footer-heading">Product</h5>
+            <h3 className="footer-heading">Product</h3>
             <ul className="footer-links-list">
               <li>
                 <a href="#tools">Tools</a>
@@ -908,7 +908,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           {/* Support Col */}
           <div className="footer-col">
-            <h5 className="footer-heading">Support</h5>
+            <h3 className="footer-heading">Support</h3>
             <ul className="footer-links-list">
               <li><a href="#faq">FAQ</a></li>
               <li><a href="mailto:support@pdfly.app">Contact</a></li>
@@ -922,7 +922,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             © {new Date().getFullYear()} PDFly. All rights reserved.
           </div>
           <div className="footer-built-with">
-            Built with <span style={{ color: '#ef4444' }}>❤️</span> for a more productive you.
+            Built with love <span style={{ color: '#ef4444' }} aria-hidden="true">❤️</span> for a more productive you.
           </div>
         </div>
       </footer>

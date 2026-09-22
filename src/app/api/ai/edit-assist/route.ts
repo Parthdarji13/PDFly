@@ -3,7 +3,7 @@ import { callAI, checkRateLimit } from '@/lib/ai/gemini';
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') || '127.0.0.1';
+    const ip = (req.headers.get('x-forwarded-for') || '127.0.0.1').split(',')[0].trim();
     const rateCheck = checkRateLimit(ip, 50, 60000);
     if (!rateCheck.allowed) {
       return NextResponse.json(

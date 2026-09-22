@@ -37,6 +37,14 @@ export function checkRateLimit(
   windowMs = 60000
 ): { allowed: boolean; remaining: number } {
   const now = Date.now();
+
+  // Prune expired entries to prevent unbounded memory growth
+  if (rateLimitMap.size > 5000) {
+    for (const [key, rec] of rateLimitMap.entries()) {
+      if (now > rec.resetTime) rateLimitMap.delete(key);
+    }
+  }
+
   const record = rateLimitMap.get(identifier);
 
   if (!record || now > record.resetTime) {
@@ -83,13 +91,11 @@ function wait(ms: number): Promise<void> {
 
 // Fallback Gemini models in order of priority (Fastest & most reliable first)
 const GEMINI_FALLBACK_MODELS = [
-  'gemini-3.5-flash',
-  'gemini-flash-lite-latest',
-  'gemini-3.5-flash-lite',
-  'gemini-3.6-flash',
-  'gemini-flash-latest',
-  'gemini-3.7-flash',
-  'gemini-pro-latest',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-1.5-pro',
 ];
 
 /**
