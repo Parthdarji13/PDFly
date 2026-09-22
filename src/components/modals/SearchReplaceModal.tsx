@@ -72,6 +72,8 @@ export const SearchReplaceModal: React.FC<SearchReplaceModalProps> = ({
         letterSpacing: 0,
         backgroundColor: item.backgroundColor || '#ffffff',
         isOriginalEdit: true,
+        originalText: item.text,
+        isModified: true,
         originalTextId: item.id,
         originalBBox: {
           x: item.visualX,

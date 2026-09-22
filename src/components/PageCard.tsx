@@ -69,13 +69,25 @@ export const PageCard: React.FC<PageCardProps> = ({
       if (!ctx) return;
       pageElements.forEach((el) => {
         if (el.type === 'text' && (el as TextElement).isOriginalEdit && (el as TextElement).originalBBox) {
-          const bbox = (el as TextElement).originalBBox!;
-          const eraseH = Math.min(bbox.height, (el as TextElement).height || bbox.height);
-          ctx.fillStyle = (el as TextElement).backgroundColor || '#ffffff';
+          const textEl = el as TextElement;
+          const bbox = textEl.originalBBox!;
+          const hasDescenders = /[gjpqy,;Q]/.test(textEl.originalText || textEl.text || '');
+
+          // Full ink coverage with safe margins that completely erase original ink without spilling into borders
+          const padHoriz = 0.5;
+          const padTop = 0.5;
+          const padBottom = hasDescenders ? 1.5 : 0.8;
+
+          const eraseX = bbox.x - padHoriz;
+          const eraseY = bbox.y - padTop;
+          const eraseW = bbox.width + padHoriz * 2;
+          const eraseH = bbox.height + padTop + padBottom;
+
+          ctx.fillStyle = textEl.backgroundColor || '#ffffff';
           ctx.fillRect(
-            bbox.x * 2.0,
-            bbox.y * 2.0,
-            bbox.width * 2.0,
+            eraseX * 2.0,
+            eraseY * 2.0,
+            eraseW * 2.0,
             eraseH * 2.0
           );
         }
@@ -99,13 +111,25 @@ export const PageCard: React.FC<PageCardProps> = ({
     if (!ctx) return;
     pageElements.forEach((el) => {
       if (el.type === 'text' && (el as TextElement).isOriginalEdit && (el as TextElement).originalBBox) {
-        const bbox = (el as TextElement).originalBBox!;
-        const eraseH = Math.min(bbox.height, (el as TextElement).height || bbox.height);
-        ctx.fillStyle = (el as TextElement).backgroundColor || '#ffffff';
+        const textEl = el as TextElement;
+        const bbox = textEl.originalBBox!;
+        const hasDescenders = /[gjpqy,;Q]/.test(textEl.originalText || textEl.text || '');
+
+        // Full ink coverage with safe margins that completely erase original ink without spilling into borders
+        const padHoriz = 0.5;
+        const padTop = 0.5;
+        const padBottom = hasDescenders ? 1.5 : 0.8;
+
+        const eraseX = bbox.x - padHoriz;
+        const eraseY = bbox.y - padTop;
+        const eraseW = bbox.width + padHoriz * 2;
+        const eraseH = bbox.height + padTop + padBottom;
+
+        ctx.fillStyle = textEl.backgroundColor || '#ffffff';
         ctx.fillRect(
-          bbox.x * 2.0,
-          bbox.y * 2.0,
-          bbox.width * 2.0,
+          eraseX * 2.0,
+          eraseY * 2.0,
+          eraseW * 2.0,
           eraseH * 2.0
         );
       }
@@ -198,34 +222,42 @@ export const PageCard: React.FC<PageCardProps> = ({
       return;
     }
 
-    // Immediately patch the canvas under the text to erase the original ink
+    // Create an editable text element matching the original font & size!
+    const cleanStr = cleanTextForPdf(textItem.text);
+
+    // Immediately conceal the original text on the canvas so no double-text/ghosting occurs
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
       if (ctx) {
+        const hasDescenders = /[gjpqy,;Q]/.test(cleanStr);
+        const padHoriz = 0.5;
+        const padTop = 0.5;
+        const padBottom = hasDescenders ? 1.5 : 0.8;
+        const eraseX = textItem.visualX - padHoriz;
+        const eraseY = textItem.visualY - padTop;
+        const eraseW = textItem.width + padHoriz * 2;
+        const eraseH = textItem.height + padTop + padBottom;
+
         ctx.fillStyle = sampledBg;
         ctx.fillRect(
-          textItem.visualX * 2.0,
-          textItem.visualY * 2.0,
-          textItem.width * 2.0,
-          textItem.height * 2.0
+          eraseX * 2.0,
+          eraseY * 2.0,
+          eraseW * 2.0,
+          eraseH * 2.0
         );
       }
     }
-
-    // Tight dimensions: exactly match text bounds without oversized bubbles
-    const initialW = Math.ceil(textItem.width) + 1;
-    const initialH = Math.ceil(textItem.height);
-
-    // Create an editable text element matching the original font & size!
     const newTextElement: TextElement = {
       id: `edited-text-${Date.now()}`,
       pageIndex: pageIndex,
       type: 'text',
       x: textItem.visualX,
       y: textItem.visualY,
-      width: initialW,
-      height: initialH,
-      text: cleanTextForPdf(textItem.text),
+      width: Math.ceil(textItem.width),
+      height: Math.ceil(textItem.height),
+      text: cleanStr,
+      originalText: cleanStr,
+      isModified: false,
       fontFamily: textItem.fontFamily,
       pdfFontKey: textItem.pdfFontKey,
       fontSize:
@@ -688,8 +720,9 @@ export const PageCard: React.FC<PageCardProps> = ({
                       textAlign: (el as TextElement).align || 'left',
                       lineHeight: String((el as TextElement).lineHeight || 1.18),
                       letterSpacing: `${(el as TextElement).letterSpacing || 0}px`,
-                      // Use sampled background so original canvas text is hidden seamlessly
-                      backgroundColor: (el as TextElement).backgroundColor || '#ffffff',
+                      // Original edits use transparent background so canvas concealment shows through
+                      // without an opaque DOM rectangle covering table borders or lines
+                      backgroundColor: (el as TextElement).isOriginalEdit ? 'transparent' : (el as TextElement).backgroundColor || '#ffffff',
                       borderRadius: 0,
                       padding: '0px',
                       margin: 0,
@@ -737,13 +770,13 @@ export const PageCard: React.FC<PageCardProps> = ({
                         maxMeasuredWidth = maxLen * (safeFontSize * 0.55);
                       }
 
-                      // Ensure width at least covers original bounding box (so old text remains covered)
-                      // plus 1px margin for subpixel rounding
-                      const origW = textEl.originalBBox?.width || 0;
-                      const estWidth = Math.max(origW, Math.ceil(maxMeasuredWidth) + 1);
+                      // Dynamic width that shrinks when text is deleted/shortened,
+                      // never leaving a large empty white box
+                      const estWidth = Math.max(16, Math.ceil(maxMeasuredWidth) + 4);
 
                       onUpdateElement(el.id, {
                         text: newText,
+                        isModified: true,
                         height: Math.round(estHeight),
                         width: Math.round(estWidth),
                       });
@@ -784,8 +817,9 @@ export const PageCard: React.FC<PageCardProps> = ({
                       textAlign: (el as TextElement).align || 'left',
                       lineHeight: String((el as TextElement).lineHeight || 1.18),
                       letterSpacing: `${(el as TextElement).letterSpacing || 0}px`,
-                      // Background covers original canvas text — permanently visible after editing
-                      backgroundColor: (el as TextElement).backgroundColor || '#ffffff',
+                      // Original edits use transparent background so canvas concealment shows through
+                      // without an opaque DOM rectangle covering table borders or lines
+                      backgroundColor: (el as TextElement).isOriginalEdit ? 'transparent' : (el as TextElement).backgroundColor || '#ffffff',
                       borderRadius: 0,
                       padding: '0px',
                       margin: 0,
@@ -799,39 +833,6 @@ export const PageCard: React.FC<PageCardProps> = ({
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
-                      const textEl = el as TextElement;
-                      if (textEl.isOriginalEdit && textEl.originalBBox) {
-                        const sampledBg = sampleCanvasBackgroundColor(
-                          canvasRef.current,
-                          textEl.originalBBox,
-                          2.0,
-                          '#ffffff'
-                        );
-                        const sampledInk = sampleCanvasInkColor(
-                          canvasRef.current,
-                          textEl.originalBBox,
-                          2.0,
-                          textEl.color || '#000000'
-                        );
-                        if (canvasRef.current) {
-                          const ctx = canvasRef.current.getContext('2d');
-                          if (ctx) {
-                            ctx.fillStyle = sampledBg;
-                            ctx.fillRect(
-                              textEl.originalBBox.x * 2.0,
-                              textEl.originalBBox.y * 2.0,
-                              textEl.originalBBox.width * 2.0,
-                              textEl.originalBBox.height * 2.0
-                            );
-                          }
-                        }
-                        if (textEl.backgroundColor === 'transparent' || !textEl.backgroundColor) {
-                          onUpdateElement(el.id, {
-                            backgroundColor: sampledBg,
-                            color: sampledInk,
-                          });
-                        }
-                      }
                       onSelectElement(el.id);
                       setTimeout(() => {
                         const ta = document.getElementById(`text-el-${el.id}`) as HTMLTextAreaElement | null;

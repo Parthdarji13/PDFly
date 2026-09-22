@@ -174,16 +174,20 @@ async function renderTextElement(
     const unionMinY = Math.min(bbox.y, el.y);
     const unionMaxX = Math.max(bbox.x + bbox.width, el.x + currentW);
 
-    // Use tight text height so the patch never extends down into adjacent table headers or cell borders
+    // Full ink coverage with safe margins that completely erase original ink without spilling into borders
+    const padHoriz = 0.5;
+    const padTop = 0.5;
+    const padBottom = hasDescenders ? 1.5 : 0.8;
+
     const unionHeight =
       lineCount === 1
-        ? singleLineHeight
-        : Math.max(bbox.height, totalTextHeight);
-    const unionWidth = Math.max(0, unionMaxX - unionMinX);
+        ? singleLineHeight + padTop + padBottom
+        : Math.max(bbox.height + padTop + padBottom, totalTextHeight);
+    const unionWidth = Math.max(0, unionMaxX - unionMinX + padHoriz * 2);
 
     // In PDF coordinates (y=0 at bottom of page)
-    const patchX = unionMinX;
-    const patchY = Math.max(0, pageHeight - unionMinY - unionHeight);
+    const patchX = unionMinX - padHoriz;
+    const patchY = Math.max(0, pageHeight - (unionMinY - padTop) - unionHeight);
     const patchW = unionWidth;
     const patchH = unionHeight;
 

@@ -197,11 +197,13 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
       const fontSize = calculateFontSizeFromTransform(transform, itemHeight);
 
       // In PDF typography, ty is the text baseline.
-      // Ascender extends above baseline (typically ~0.82 * fontSize), descender extends below (~0.18 * fontSize).
+      // Ascender extends above baseline (typically ~0.80 * fontSize).
       const ascentRatio = fontObjInfo?.ascent && fontObjInfo.ascent > 500 ? fontObjInfo.ascent / 1000 : 0.82;
-      const ascenderHeight = fontSize * Math.min(1.0, Math.max(0.7, ascentRatio));
+      const ascenderHeight = fontSize * Math.min(0.85, Math.max(0.7, ascentRatio));
       const hasDescenders = /[gjpqy,;Q]/.test(cleanStr);
-      const descenderHeight = hasDescenders ? fontSize * 0.18 : fontSize * 0.04;
+      // If there are no descender letters (e.g. numbers, dates, uppercase, names), descender height is 0.
+      // This prevents the bounding box from bleeding downwards over table borders and cell dividers!
+      const descenderHeight = hasDescenders ? fontSize * 0.18 : 0;
       const boxHeight = ascenderHeight + descenderHeight;
 
       // Convert PDF coordinate system (origin bottom-left baseline) to visual top-left
@@ -224,7 +226,7 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
         y: ty,
         visualX: visualX,
         visualY: Math.max(0, visualY),
-        width: itemWidth > 0 ? itemWidth : item.str.length * (fontSize * 0.6),
+        width: itemWidth > 0 ? itemWidth : item.str.length * (fontSize * 0.55),
         height: boxHeight,
         fontName: item.fontName || '',
         cleanFontName: fontObjInfo?.cleanName || cleanPdfFontName(item.fontName || ''),
@@ -262,7 +264,10 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
       const sameLine = Math.abs(prev.visualY - item.visualY) <= Math.min(prev.fontSize, item.fontSize) * 0.45;
       const sameFont = prev.fontFamily === item.fontFamily && Math.abs(prev.fontSize - item.fontSize) <= 1.5;
       const gap = item.visualX - (prev.visualX + prev.width);
-      const isAdjacent = gap >= -4 && gap <= Math.max(prev.fontSize, item.fontSize) * 1.6;
+      // Realistic word spacing threshold: maximum 0.75 * fontSize.
+      // This prevents merging text fragments across table columns or tab boundaries into a single block!
+      const maxWordGap = Math.min(prev.fontSize, item.fontSize) * 0.75;
+      const isAdjacent = gap >= -2 && gap <= maxWordGap;
 
       if (sameLine && sameFont && isAdjacent) {
         const needsSpace = gap > prev.fontSize * 0.15 && !prev.text.endsWith(' ') && !item.text.startsWith(' ');

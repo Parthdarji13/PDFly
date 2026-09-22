@@ -330,10 +330,11 @@ export function sampleCanvasBackgroundColor(
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return fallback;
 
+    const samplePadY = Math.round(2 * canvasScale);
     const sx = Math.max(0, Math.min(canvas.width - 1, Math.round(bbox.x * canvasScale)));
-    const sy = Math.max(0, Math.min(canvas.height - 1, Math.round(bbox.y * canvasScale)));
+    const sy = Math.max(0, Math.min(canvas.height - 1, Math.round(bbox.y * canvasScale) - samplePadY));
     const sw = Math.max(1, Math.min(canvas.width - sx, Math.round(bbox.width * canvasScale)));
-    const sh = Math.max(1, Math.min(canvas.height - sy, Math.round(bbox.height * canvasScale)));
+    const sh = Math.max(1, Math.min(canvas.height - sy, Math.round(bbox.height * canvasScale) + samplePadY * 2));
 
     if (sw <= 0 || sh <= 0) return fallback;
 
@@ -352,8 +353,12 @@ export function sampleCanvasBackgroundColor(
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
-      // Quantize to reduce antialiasing noise
+      // Filter out dark ink glyphs and antialiasing edges to only sample true background
+      if (lum < 160) continue;
+
+      // Quantize to reduce minor sensor/compression noise
       const qr = (r >> 2) << 2;
       const qg = (g >> 2) << 2;
       const qb = (b >> 2) << 2;
@@ -372,7 +377,7 @@ export function sampleCanvasBackgroundColor(
 
     if (bins.size === 0) return fallback;
 
-    // The background is the dominant color (highest count of pixels inside the text box)
+    // The background is the dominant color (highest count of non-ink pixels inside the text box)
     let bestBin: { count: number; sumR: number; sumG: number; sumB: number } | null = null;
     for (const bin of bins.values()) {
       if (!bestBin || bin.count > bestBin.count) {
@@ -386,8 +391,8 @@ export function sampleCanvasBackgroundColor(
     const avgG = Math.round(bestBin.sumG / bestBin.count);
     const avgB = Math.round(bestBin.sumB / bestBin.count);
 
-    // If genuinely pure white, return standard '#ffffff'
-    if (avgR >= 252 && avgG >= 252 && avgB >= 252) {
+    // If genuinely pure white (all 255), return standard '#ffffff'
+    if (avgR >= 254 && avgG >= 254 && avgB >= 254) {
       return '#ffffff';
     }
 
