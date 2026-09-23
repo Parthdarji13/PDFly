@@ -316,7 +316,17 @@ export async function watermarkPdf(
 
   for (const page of pages) {
     const { width, height } = page.getSize();
-    const textWidth = font.widthOfTextAtSize(watermarkText, fontSize);
+    let textWidth = fontSize * watermarkText.length * 0.55;
+    try {
+      textWidth = font.widthOfTextAtSize(watermarkText, fontSize);
+    } catch {
+      try {
+        const ascii = watermarkText.replace(/[^\x20-\x7E]/g, '?');
+        textWidth = font.widthOfTextAtSize(ascii, fontSize);
+      } catch {
+        // default fallback
+      }
+    }
     const textHeight = font.heightAtSize(fontSize);
 
     let x = (width - textWidth) / 2;
@@ -330,15 +340,32 @@ export async function watermarkPdf(
       y = height - textHeight - 30;
     }
 
-    page.drawText(watermarkText, {
-      x: x,
-      y: y,
-      size: fontSize,
-      font: font,
-      color: rgb(r, g, b),
-      opacity: options.opacity ?? 0.3,
-      rotate: degrees(options.rotation || 0),
-    });
+    try {
+      page.drawText(watermarkText, {
+        x: x,
+        y: y,
+        size: fontSize,
+        font: font,
+        color: rgb(r, g, b),
+        opacity: options.opacity ?? 0.3,
+        rotate: degrees(options.rotation || 0),
+      });
+    } catch {
+      try {
+        const ascii = watermarkText.replace(/[^\x20-\x7E]/g, '?');
+        page.drawText(ascii, {
+          x: x,
+          y: y,
+          size: fontSize,
+          font: font,
+          color: rgb(r, g, b),
+          opacity: options.opacity ?? 0.3,
+          rotate: degrees(options.rotation || 0),
+        });
+      } catch (err) {
+        console.error('Failed to render watermark on page:', err);
+      }
+    }
   }
 
   return await pdfDoc.save();

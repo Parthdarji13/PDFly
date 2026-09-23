@@ -283,6 +283,7 @@ export async function loadPDFDocument(data: Uint8Array | ArrayBuffer): Promise<L
     pages.push({
       pageIndex: i - 1,
       pageNumber: i,
+      originalPageIndex: i - 1,
       width: viewport.width,
       height: viewport.height,
       originalWidth: viewport.width,

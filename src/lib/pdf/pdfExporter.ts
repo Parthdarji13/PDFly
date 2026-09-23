@@ -27,6 +27,11 @@ export function parseColorToRgb(colorStr?: string) {
 
   const clean = colorStr.trim().toLowerCase();
 
+  // If transparent or none, return pure white to avoid solid black rectangles
+  if (clean === 'transparent' || clean === 'none') {
+    return rgb(1, 1, 1);
+  }
+
   // Hex format #ffffff or #fff
   if (clean.startsWith('#')) {
     let hex = clean.slice(1);
@@ -48,36 +53,101 @@ export function parseColorToRgb(colorStr?: string) {
     return rgb(r, g, b);
   }
 
+  // Standard named colors
+  const namedColors: Record<string, [number, number, number]> = {
+    white: [1, 1, 1],
+    black: [0, 0, 0],
+    red: [0.94, 0.27, 0.27],
+    blue: [0.15, 0.39, 0.92],
+    green: [0.09, 0.64, 0.29],
+    yellow: [0.98, 0.8, 0.08],
+    gray: [0.4, 0.4, 0.4],
+  };
+  if (namedColors[clean]) {
+    const [r, g, b] = namedColors[clean];
+    return rgb(r, g, b);
+  }
+
   return rgb(0, 0, 0);
+}
+
+/**
+ * Safely measures width of text with fallback cascade that NEVER throws unhandled WinAnsi errors
+ */
+export function safeMeasureTextWidth(
+  text: string,
+  primaryFont: PDFFont,
+  fallbackFont: PDFFont,
+  fontSize: number
+): number {
+  if (!text || text.length === 0) return 0;
+  try {
+    return primaryFont.widthOfTextAtSize(text, fontSize);
+  } catch {
+    try {
+      return fallbackFont.widthOfTextAtSize(text, fontSize);
+    } catch {
+      try {
+        const ascii = text.replace(/[^\x20-\x7E]/g, '?');
+        return fallbackFont.widthOfTextAtSize(ascii, fontSize);
+      } catch {
+        return text.length * (fontSize * 0.55);
+      }
+    }
+  }
 }
 
 /**
  * Compiles and exports the edited PDF with embedded matching fonts
  */
 export async function exportModifiedPDF(documentState: DocumentState): Promise<Uint8Array> {
-  let pdfDoc: PDFDocument;
+  let srcDoc: PDFDocument | null = null;
 
   if (documentState.rawPdfBytes && documentState.rawPdfBytes.length > 0) {
-    pdfDoc = await PDFDocument.load(documentState.rawPdfBytes, { ignoreEncryption: true });
-  } else {
-    pdfDoc = await PDFDocument.create();
+    try {
+      srcDoc = await PDFDocument.load(documentState.rawPdfBytes, { ignoreEncryption: true });
+    } catch (loadErr) {
+      console.warn('[pdfExporter] Failed to load rawPdfBytes:', loadErr);
+    }
   }
 
+  let pdfDoc: PDFDocument;
   const fontCache = new Map<string, PDFFont>();
 
-  // Ensure total page count matches
+  // Determine if pages were reordered, deleted, or added
+  const srcPageCount = srcDoc ? srcDoc.getPageCount() : 0;
+  const isOriginalLayout =
+    Boolean(srcDoc) &&
+    documentState.pages.length === srcPageCount &&
+    documentState.pages.every((p, idx) => (p.originalPageIndex ?? idx) === idx);
+
+  if (srcDoc && isOriginalLayout) {
+    pdfDoc = srcDoc;
+  } else if (srcDoc) {
+    pdfDoc = await PDFDocument.create();
+    for (const pageInfo of documentState.pages) {
+      const origIdx = pageInfo.originalPageIndex ?? pageInfo.pageIndex;
+      if (origIdx >= 0 && origIdx < srcPageCount) {
+        const [copied] = await pdfDoc.copyPages(srcDoc, [origIdx]);
+        pdfDoc.addPage(copied);
+      } else {
+        pdfDoc.addPage([pageInfo.width || 595, pageInfo.height || 842]);
+      }
+    }
+  } else {
+    pdfDoc = await PDFDocument.create();
+    for (const pageInfo of documentState.pages) {
+      pdfDoc.addPage([pageInfo.width || 595, pageInfo.height || 842]);
+    }
+  }
+
   const pdfPages = pdfDoc.getPages();
 
   // Process elements page by page
   for (let pageIdx = 0; pageIdx < documentState.pages.length; pageIdx++) {
     const pageInfo = documentState.pages[pageIdx];
-    let page: PDFPage;
-
-    if (pageIdx < pdfPages.length) {
-      page = pdfPages[pageIdx];
-    } else {
-      page = pdfDoc.addPage([pageInfo.width || 595, pageInfo.height || 842]);
-    }
+    const page = pdfPages[pageIdx];
+    if (!page) continue;
 
     // Apply rotation if modified
     if (pageInfo.rotation !== undefined) {
@@ -196,7 +266,11 @@ async function renderTextElement(
       y: patchY,
       width: patchW,
       height: patchH,
-      color: parseColorToRgb(el.backgroundColor || '#ffffff'),
+      color: parseColorToRgb(
+        el.backgroundColor && el.backgroundColor !== 'transparent'
+          ? el.backgroundColor
+          : '#ffffff'
+      ),
       opacity: 1,
     });
   } else if (el.backgroundColor && el.backgroundColor !== 'transparent') {
@@ -257,30 +331,31 @@ async function renderTextElement(
     // because PDF streams use coordinate displacement for word spacing.
     const hasSpaceGlyph = fontHasSpaceGlyph(activeFont);
 
-    // Determine width of space gap
-    let spaceWidth = fallbackFont.widthOfTextAtSize(' ', fontSize);
+    // Determine width of space gap safely
+    let spaceWidth = fontSize * 0.28;
+    try {
+      spaceWidth = fallbackFont.widthOfTextAtSize(' ', fontSize);
+    } catch {
+      // default
+    }
     if (hasSpaceGlyph) {
       try {
         spaceWidth = activeFont.widthOfTextAtSize(' ', fontSize);
       } catch {
-        spaceWidth = fallbackFont.widthOfTextAtSize(' ', fontSize);
+        // fallback
       }
     }
 
     // Split line into alternating words and whitespace tokens (e.g. ["Entry-exit", " ", "data", " ", "report"])
     const tokens = line.split(/(\s+)/);
 
-    // Calculate total line width accurately
+    // Calculate total line width accurately and safely without unhandled exceptions
     let totalLineWidth = 0;
     for (const token of tokens) {
       if (/^\s+$/.test(token)) {
         totalLineWidth += token.length * spaceWidth;
       } else if (token.length > 0) {
-        try {
-          totalLineWidth += activeFont.widthOfTextAtSize(token, fontSize);
-        } catch {
-          totalLineWidth += fallbackFont.widthOfTextAtSize(token, fontSize);
-        }
+        totalLineWidth += safeMeasureTextWidth(token, activeFont, fallbackFont, fontSize);
       }
     }
 
@@ -308,8 +383,7 @@ async function renderTextElement(
       } catch (drawErr) {
         console.warn(`[pdfExporter] drawText fallback for "${line}":`, drawErr);
         try {
-          const asciiLine = line.replace(/[^\x20-\x7E]/g, '?');
-          page.drawText(asciiLine, {
+          page.drawText(line, {
             x: drawX,
             y: drawY,
             size: fontSize,
@@ -317,8 +391,20 @@ async function renderTextElement(
             color: textColor,
             opacity: el.opacity ?? 1,
           });
-        } catch (fbErr) {
-          console.error(`[pdfExporter] Final drawText error:`, fbErr);
+        } catch {
+          try {
+            const asciiLine = line.replace(/[^\x20-\x7E]/g, '?');
+            page.drawText(asciiLine, {
+              x: drawX,
+              y: drawY,
+              size: fontSize,
+              font: fallbackFont,
+              color: textColor,
+              opacity: el.opacity ?? 1,
+            });
+          } catch (fbErr) {
+            console.error(`[pdfExporter] Final drawText error:`, fbErr);
+          }
         }
       }
     } else {
@@ -329,6 +415,7 @@ async function renderTextElement(
         if (/^\s+$/.test(token)) {
           curX += token.length * spaceWidth;
         } else if (token.length > 0) {
+          let tokenDrawn = false;
           try {
             page.drawText(token, {
               x: curX,
@@ -338,12 +425,15 @@ async function renderTextElement(
               color: textColor,
               opacity: el.opacity ?? 1,
             });
-            curX += activeFont.widthOfTextAtSize(token, fontSize);
+            tokenDrawn = true;
+            curX += safeMeasureTextWidth(token, activeFont, fallbackFont, fontSize);
           } catch (tokenErr) {
             console.warn(`[pdfExporter] Token draw fallback for "${token}":`, tokenErr);
+          }
+
+          if (!tokenDrawn) {
             try {
-              const asciiToken = token.replace(/[^\x20-\x7E]/g, '?');
-              page.drawText(asciiToken, {
+              page.drawText(token, {
                 x: curX,
                 y: drawY,
                 size: fontSize,
@@ -351,10 +441,24 @@ async function renderTextElement(
                 color: textColor,
                 opacity: el.opacity ?? 1,
               });
-              curX += fallbackFont.widthOfTextAtSize(asciiToken, fontSize);
-            } catch (tokFbErr) {
-              console.error(`[pdfExporter] Token fallback failed:`, tokFbErr);
-              curX += token.length * (fontSize * 0.55);
+              tokenDrawn = true;
+              curX += safeMeasureTextWidth(token, fallbackFont, fallbackFont, fontSize);
+            } catch {
+              try {
+                const asciiToken = token.replace(/[^\x20-\x7E]/g, '?');
+                page.drawText(asciiToken, {
+                  x: curX,
+                  y: drawY,
+                  size: fontSize,
+                  font: fallbackFont,
+                  color: textColor,
+                  opacity: el.opacity ?? 1,
+                });
+                curX += safeMeasureTextWidth(asciiToken, fallbackFont, fallbackFont, fontSize);
+              } catch (tokFbErr) {
+                console.error(`[pdfExporter] Token fallback failed:`, tokFbErr);
+                curX += token.length * (fontSize * 0.55);
+              }
             }
           }
         }
@@ -596,7 +700,33 @@ async function renderShapeElement(page: PDFPage, el: ShapeElement, pageHeight: n
         color: strokeColor,
         opacity: opacity,
       });
+      case 'star': {
+      const cx = el.x + el.width / 2;
+      const cy = pdfY + el.height / 2;
+      const outerR = Math.min(el.width, el.height) / 2;
+      const innerR = outerR * 0.45;
+      const points: { x: number; y: number }[] = [];
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 === 0 ? outerR : innerR;
+        const angle = (i * Math.PI) / 5 - Math.PI / 2;
+        points.push({
+          x: cx + r * Math.cos(angle),
+          y: cy + r * Math.sin(angle),
+        });
+      }
+      for (let i = 0; i < points.length; i++) {
+        const p1 = points[i];
+        const p2 = points[(i + 1) % points.length];
+        page.drawLine({
+          start: p1,
+          end: p2,
+          thickness: strokeWidth,
+          color: strokeColor,
+          opacity: opacity,
+        });
+      }
       break;
+    }
   }
 }
 
@@ -604,11 +734,23 @@ async function renderShapeElement(page: PDFPage, el: ShapeElement, pageHeight: n
  * Renders Freehand Drawing & Highlighter Strokes
  */
 async function renderDrawElement(page: PDFPage, el: DrawElement, pageHeight: number) {
-  if (!el.points || el.points.length < 2) return;
+  if (!el.points || el.points.length === 0) return;
 
   const color = parseColorToRgb(el.strokeColor || '#ef4444');
   const thickness = el.strokeWidth || 3;
   const opacity = el.isHighlighter ? 0.35 : (el.opacity ?? 1);
+
+  if (el.points.length === 1) {
+    const p = el.points[0];
+    page.drawCircle({
+      x: p.x,
+      y: pageHeight - p.y,
+      size: thickness / 2,
+      color: color,
+      opacity: opacity,
+    });
+    return;
+  }
 
   // Draw continuous smooth segments
   for (let i = 0; i < el.points.length - 1; i++) {
@@ -672,11 +814,24 @@ async function renderSignatureElement(
   if (!el.dataUrl) return;
 
   let image;
-  if (el.dataUrl.startsWith('data:image/png')) {
-    image = await pdfDoc.embedPng(el.dataUrl);
-  } else {
-    image = await pdfDoc.embedPng(el.dataUrl);
+  try {
+    if (el.dataUrl.startsWith('data:image/png')) {
+      image = await pdfDoc.embedPng(el.dataUrl);
+    } else if (el.dataUrl.startsWith('data:image/jpeg') || el.dataUrl.startsWith('data:image/jpg')) {
+      image = await pdfDoc.embedJpg(el.dataUrl);
+    } else {
+      image = await embedSvgOrOtherImage(pdfDoc, el.dataUrl, el.width, el.height);
+    }
+  } catch (sigErr) {
+    console.warn('[pdfExporter] Direct signature embed failed, trying canvas fallback:', sigErr);
+    try {
+      image = await embedSvgOrOtherImage(pdfDoc, el.dataUrl, el.width, el.height);
+    } catch {
+      // ignore
+    }
   }
+
+  if (!image) return;
 
   const pdfY = pageHeight - el.y - el.height;
 
@@ -695,7 +850,7 @@ async function renderSignatureElement(
  */
 async function renderRedactElement(page: PDFPage, el: RedactElement, pageHeight: number) {
   const isBlackout = el.redactType === 'blackout';
-  const color = isBlackout ? rgb(0, 0, 0) : rgb(1, 1, 1);
+  const color = el.color ? parseColorToRgb(el.color) : (isBlackout ? rgb(0, 0, 0) : rgb(1, 1, 1));
   const pdfY = pageHeight - el.y - el.height;
 
   page.drawRectangle({
@@ -743,7 +898,11 @@ async function embedSvgOrOtherImage(
  * Triggers a browser download of the exported PDF bytes
  */
 export function downloadPdfBlob(bytes: Uint8Array, fileName: string = 'edited-document.pdf') {
-  const blob = new Blob([bytes as any], { type: 'application/pdf' });
+  const safeBuffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  );
+  const blob = new Blob([safeBuffer as BlobPart], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

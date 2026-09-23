@@ -179,6 +179,7 @@ export interface PageInfo {
   rotation: number;
   textItems: DetectedTextItem[];
   thumbnailUrl?: string;
+  originalPageIndex?: number;
 }
 
 export interface DocumentState {
