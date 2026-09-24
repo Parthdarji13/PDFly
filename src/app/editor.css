@@ -3770,3 +3770,203 @@
     transform: rotate(360deg);
   }
 }
+
+/* =========================================================================
+   7. Mobile & Tablet Responsiveness (App & Mobile Layout)
+   ========================================================================= */
+
+@media (max-width: 900px) {
+  :root {
+    --sidebar-width: 240px;
+    --topbar-height: 54px;
+    --toolbar-height: 48px;
+  }
+
+  .home-nav-links {
+    display: none;
+  }
+
+  .home-nav-inner {
+    padding: 0 16px;
+    height: 56px;
+  }
+
+  .tools-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .templates-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doc-name-input {
+    max-width: 140px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --topbar-height: 50px;
+    --toolbar-height: 46px;
+  }
+
+  /* Top Navigation in Editor */
+  .top-nav {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .brand-section {
+    min-width: auto;
+    gap: 6px;
+  }
+
+  .brand-meta {
+    display: none;
+  }
+
+  .doc-name-input {
+    max-width: 110px !important;
+    font-size: 12px !important;
+    padding: 4px 8px !important;
+  }
+
+  .top-nav-actions {
+    gap: 4px;
+  }
+
+  .top-nav-actions .btn-label,
+  .top-nav .btn-text {
+    display: none;
+  }
+
+  .top-nav button,
+  .nav-btn {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* Tool Ribbon: Smooth Horizontal Scroll */
+  .tool-ribbon {
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 8px;
+    justify-content: flex-start;
+  }
+
+  .tool-ribbon::-webkit-scrollbar {
+    height: 3px;
+  }
+
+  .tool-ribbon::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+  }
+
+  .ribbon-btn {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+    flex-shrink: 0;
+  }
+
+  .ribbon-divider {
+    margin: 0 4px;
+    flex-shrink: 0;
+  }
+
+  /* Left Sidebar Overlay on Mobile */
+  .left-sidebar {
+    position: absolute !important;
+    top: calc(var(--topbar-height) + var(--toolbar-height));
+    left: 0;
+    height: calc(100vh - var(--topbar-height) - var(--toolbar-height)) !important;
+    z-index: 55;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.6);
+    transition: transform var(--transition-normal);
+  }
+
+  .left-sidebar.collapsed {
+    transform: translateX(-100%);
+  }
+
+  /* Canvas Viewport */
+  .canvas-viewport {
+    padding: 8px !important;
+    touch-action: pan-x pan-y pinch-zoom;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Floating Inspector */
+  .inspector-root,
+  .floating-inspector {
+    max-width: 95vw !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    bottom: 12px !important;
+  }
+
+  /* Modals on Mobile */
+  .modal-overlay {
+    padding: 10px !important;
+    align-items: flex-end;
+  }
+
+  .modal-container,
+  .modal-content,
+  .modal-box {
+    width: 100% !important;
+    max-width: 100vw !important;
+    max-height: 90vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    padding: 16px !important;
+    overflow-y: auto !important;
+  }
+
+  .modal-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Homepage Hero */
+  .hero-section {
+    padding: 32px 16px !important;
+  }
+
+  .hero-title {
+    font-size: 28px !important;
+    line-height: 1.2 !important;
+  }
+
+  .hero-subtitle {
+    font-size: 14px !important;
+  }
+
+  .hero-upload-box {
+    padding: 24px 16px !important;
+  }
+
+  .tools-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .tool-card {
+    padding: 12px 10px !important;
+  }
+
+  .tool-card-title {
+    font-size: 12px !important;
+  }
+
+  .tool-card-desc {
+    display: none;
+  }
+}
+

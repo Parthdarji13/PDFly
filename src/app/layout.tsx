@@ -7,12 +7,23 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
+  themeColor: '#07080b',
 };
 
 export const metadata: Metadata = {
   title: 'PDFly — Next-Gen PDF Studio with Smart Font Matching',
   description:
     'Edit any PDF online with automatic font matching, in-place text editing, annotations, digital signatures, vector shapes, and page management with 100% privacy and high-fidelity vector PDF export.',
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'PDFly',
+  },
 };
 
 export default function RootLayout({
