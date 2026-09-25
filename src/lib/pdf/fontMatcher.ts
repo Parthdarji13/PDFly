@@ -36,8 +36,8 @@ export function cleanTextForPdf(text: string): string {
   return text
     // Replace tabs with standard ASCII space
     .replace(/\t/g, ' ')
-    // Replace all unicode space variants with standard ASCII space
-    .replace(/[\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+    // Replace all unicode space and separator variants with standard ASCII space
+    .replace(/[\u00A0\u1680\u180E\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/g, ' ')
     // Remove zero-width characters, soft hyphens, byte-order-marks, replacement chars, Private Use Area chars
     .replace(/[\u200B-\u200D\uFEFF\u00AD\u2060\uFFFD\uE000-\uF8FF]/g, '')
     // Standardize bullet variants to standard bullet/dash

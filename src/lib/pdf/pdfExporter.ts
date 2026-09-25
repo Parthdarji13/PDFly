@@ -72,6 +72,84 @@ export function parseColorToRgb(colorStr?: string) {
 }
 
 /**
+ * Reliably checks whether a PDFFont is a custom/embedded font (TrueType/OpenType/subset)
+ * vs a standard 14 PDF font (Helvetica, Times, Courier, etc.), immune to bundler class minification.
+ */
+export function isCustomFont(font?: PDFFont | null): boolean {
+  if (!font) return false;
+  const embedder = (font as any)?.embedder;
+  if (!embedder) return false;
+  return Boolean(
+    embedder.fontData ||
+    embedder.glyphCache ||
+    typeof embedder.font?.glyphsForString === 'function' ||
+    embedder.constructor?.name === 'CustomFontEmbedder'
+  );
+}
+
+/**
+ * Checks whether a font has valid glyphs for characters in a string.
+ * Returns false if any character resolves to .notdef (glyph id 0) or is missing from the font.
+ */
+export function fontSupportsText(font?: PDFFont | null, text?: string, allowMissingSpace = true): boolean {
+  if (!font || !text || text.length === 0) return true;
+  try {
+    const isCustom = isCustomFont(font);
+    if (!isCustom) {
+      try {
+        font.encodeText(text);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    const fkFont = (font as any).embedder?.font;
+    if (!fkFont) return true;
+
+    for (let i = 0; i < text.length; i++) {
+      const code = text.codePointAt(i);
+      if (!code) continue;
+      if (code > 0xffff) i++; // advance surrogate pair
+      if (code === 32 || code === 9) {
+        if (allowMissingSpace) continue;
+      }
+      if (typeof fkFont.hasGlyphForCodePoint === 'function') {
+        if (!fkFont.hasGlyphForCodePoint(code)) return false;
+      }
+      if (typeof fkFont.glyphForCodePoint === 'function') {
+        const g = fkFont.glyphForCodePoint(code);
+        if (!g || g.id === 0 || g.name === '.notdef') return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Checks whether a font has an explicit glyph for ASCII space (code point 32).
+ * In PDF subset fonts, space glyphs are almost always absent or mapped to .notdef (glyph 0 / []),
+ * which renders as an unwanted rectangle tofu box between words in PDF viewers.
+ * Returning false for all custom/embedded fonts ensures word tokens are drawn with coordinate
+ * displacement (the standard PDF mechanism for word spacing), guaranteeing no tofu boxes.
+ */
+export function fontHasSpaceGlyph(font?: PDFFont | null): boolean {
+  if (!font) return false;
+  try {
+    // Custom/embedded fonts (subsets extracted from existing PDFs) should NEVER draw space glyphs
+    if (isCustomFont(font)) {
+      return false;
+    }
+    // Standard 14 PDF fonts (Helvetica, Times, Courier, etc.) always have guaranteed ASCII space
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Safely measures width of text with fallback cascade that NEVER throws unhandled WinAnsi errors
  */
 export function safeMeasureTextWidth(
@@ -82,17 +160,20 @@ export function safeMeasureTextWidth(
 ): number {
   if (!text || text.length === 0) return 0;
   try {
-    return primaryFont.widthOfTextAtSize(text, fontSize);
+    if (primaryFont && fontSupportsText(primaryFont, text, true)) {
+      return primaryFont.widthOfTextAtSize(text, fontSize);
+    }
+  } catch {
+    // continue to fallback
+  }
+  try {
+    return fallbackFont.widthOfTextAtSize(text, fontSize);
   } catch {
     try {
-      return fallbackFont.widthOfTextAtSize(text, fontSize);
+      const ascii = text.replace(/[^\x20-\x7E]/g, '?');
+      return fallbackFont.widthOfTextAtSize(ascii, fontSize);
     } catch {
-      try {
-        const ascii = text.replace(/[^\x20-\x7E]/g, '?');
-        return fallbackFont.widthOfTextAtSize(ascii, fontSize);
-      } catch {
-        return text.length * (fontSize * 0.55);
-      }
+      return text.length * (fontSize * 0.55);
     }
   }
 }
@@ -416,17 +497,21 @@ async function renderTextElement(
           curX += token.length * spaceWidth;
         } else if (token.length > 0) {
           let tokenDrawn = false;
+          // Verify if activeFont contains all characters in this specific word token
+          const canUseActiveFont = Boolean(activeFont && fontSupportsText(activeFont, token, false));
+          const fontForToken = canUseActiveFont ? activeFont : fallbackFont;
+
           try {
             page.drawText(token, {
               x: curX,
               y: drawY,
               size: fontSize,
-              font: activeFont,
+              font: fontForToken,
               color: textColor,
               opacity: el.opacity ?? 1,
             });
             tokenDrawn = true;
-            curX += safeMeasureTextWidth(token, activeFont, fallbackFont, fontSize);
+            curX += safeMeasureTextWidth(token, fontForToken, fallbackFont, fontSize);
           } catch (tokenErr) {
             console.warn(`[pdfExporter] Token draw fallback for "${token}":`, tokenErr);
           }
@@ -477,68 +562,6 @@ async function renderTextElement(
     }
 
     currentVisualY += lineHeight;
-  }
-}
-
-/**
- * Checks whether a font has an explicit glyph for ASCII space (code point 32).
- * Embedded font subsets in PDFs almost always lack space glyphs because word spacing
- * is performed via PDF stream coordinate displacement rather than space glyphs.
- */
-export function fontHasSpaceGlyph(font: PDFFont): boolean {
-  try {
-    const isCustom = (font as any).embedder?.constructor?.name === 'CustomFontEmbedder';
-    if (!isCustom) return true; // Standard fonts always have space
-    const fkFont = (font as any).embedder?.font;
-    if (!fkFont) return true;
-    if (typeof fkFont.hasGlyphForCodePoint === 'function') {
-      if (!fkFont.hasGlyphForCodePoint(32)) return false;
-    }
-    if (typeof fkFont.glyphForCodePoint === 'function') {
-      const g = fkFont.glyphForCodePoint(32);
-      if (!g || g.id === 0 || g.name === '.notdef') return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Checks whether a font has valid glyphs for all non-whitespace characters in a string.
- * Returns false if any character resolves to .notdef (glyph id 0).
- */
-export function fontSupportsText(font: PDFFont, text: string, allowMissingSpace = true): boolean {
-  try {
-    const isCustom = (font as any).embedder?.constructor?.name === 'CustomFontEmbedder';
-    if (!isCustom) {
-      try {
-        font.encodeText(text);
-        return true;
-      } catch {
-        return false;
-      }
-    }
-    const fkFont = (font as any).embedder?.font;
-    if (!fkFont) return true;
-    for (let i = 0; i < text.length; i++) {
-      const code = text.codePointAt(i);
-      if (!code) continue;
-      if (code > 0xffff) i++; // advance surrogate pair
-      if (code === 32 || code === 9) {
-        if (allowMissingSpace) continue;
-      }
-      if (typeof fkFont.hasGlyphForCodePoint === 'function') {
-        if (!fkFont.hasGlyphForCodePoint(code)) return false;
-      }
-      if (typeof fkFont.glyphForCodePoint === 'function') {
-        const g = fkFont.glyphForCodePoint(code);
-        if (!g || g.id === 0 || g.name === '.notdef') return false;
-      }
-    }
-    return true;
-  } catch {
-    return false;
   }
 }
 
